@@ -35,7 +35,7 @@ dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
 
 const connectionString = resolveDatabaseUrl(false);
 
-const port = Number(process.env.API_PORT ?? 8787);
+const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8787);
 const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${port}`;
 const corsOrigins = (process.env.CORS_ORIGIN ?? "http://localhost:5173")
   .split(",")

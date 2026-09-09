@@ -21,8 +21,8 @@ You need two URIs (replace `[PASSWORD]` with your DB password):
 Example (shape only — copy yours from the dashboard):
 
 ```env
-DATABASE_MIGRATE_URL=postgresql://postgres.xxxxxxxxxxxx:[PASSWORD]@aws-0-us-east-1.pooler.supabase.com:5432/postgres
-DATABASE_URL=postgresql://postgres.xxxxxxxxxxxx:[PASSWORD]@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+DATABASE_MIGRATE_URL=postgresql://postgres:[FdtQspZpFyEeHi6S]@db.ncqvoejwxkqurbjgiqsg.supabase.co:5432/postgres
+DATABASE_URL=postgresql://postgres.xxxxxxxxxxxx:[FdtQspZpFyEeHi6S]@aws-0-us-east-1.pooler.supabase.com:6543/postgres
 ```
 
 SSL is turned on automatically when the host contains `supabase.com`.

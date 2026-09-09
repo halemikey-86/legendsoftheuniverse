@@ -1,83 +1,112 @@
-# Deploy WILLBOUND Catalog — willbound.haleappsllc.com
-
-Your main site **haleappsllc.com** is on **Netlify**. This guide adds:
+# Deploy WILLBOUND Catalog — Cloudflare + Supabase
 
 | Host | What |
 | --- | --- |
-| **willbound.haleappsllc.com** | Admin UI (React / Vite on Netlify) |
-| **api.willbound.haleappsllc.com** | Catalog API (Railway / Render / Fly) |
+| **willbound.haleappsllc.com** | Admin UI (Cloudflare Pages) |
+| **api.willbound.haleappsllc.com** | Catalog API (container host, DNS via Cloudflare) |
 | **Supabase** | Postgres (already configured) |
 
----
-
-## 1. Host the API (required for production)
-
-The API cannot run on Netlify alone (Node server + file uploads). Use **Railway** (easiest) or Render.
-
-### Railway
-
-1. [railway.app](https://railway.app) → New Project → Deploy from GitHub
-2. Root directory: `catalog`
-3. Start command: `npm run api`
-4. Variables (from `catalog/.env`):
-
-   | Variable | Value |
-   | --- | --- |
-   | `DATABASE_URL` | Supabase pooler `:6543` |
-   | `PUBLIC_BASE_URL` | `https://api.willbound.haleappsllc.com` |
-   | `CORS_ORIGIN` | `https://willbound.haleappsllc.com` |
-   | `ADMIN_TOKEN` | Strong secret |
-   | `DATABASE_SSL` | `true` |
-
-5. Railway → Settings → Networking → generate domain, then add custom domain `api.willbound.haleappsllc.com`
-
-### Keep API running locally (dev only)
-
-Terminal 1: `cd catalog && npm run api`  
-Terminal 2: `cd catalog/web && npm run dev`
+DNS for **haleappsllc.com** lives in **Cloudflare**. Pages serves the static admin UI; the Node API runs in a container (Fly.io, Render, or Railway) and is reached through a Cloudflare CNAME.
 
 ---
 
-## 2. Deploy admin UI to Netlify
+## Quick setup (local CLI)
 
-### Option A — Same Netlify team as haleappsllc.com
+```powershell
+# 1. Log in to Cloudflare
+wrangler login
 
-1. Netlify → **Add new site** → Import from Git
-2. Pick this repo
-3. **Base directory:** `catalog/web`
+# 2. Deploy admin UI + print DNS/env checklist
+.\catalog\scripts\setup-cloudflare.ps1
+```
+
+Optional — auto-create DNS records:
+
+```powershell
+$env:CLOUDFLARE_API_TOKEN = "your-token"
+node catalog/scripts/cloudflare-dns.mjs `
+  --zone haleappsllc.com `
+  --willbound willbound-catalog `
+  --api-host your-api.fly.dev
+```
+
+---
+
+## 1. Admin UI — Cloudflare Pages
+
+### Connect GitHub (recommended)
+
+1. [Cloudflare Dashboard](https://dash.cloudflare.com) → **Workers & Pages** → **Create** → **Pages** → Connect to Git
+2. Repository: `halemikey-86/legendsoftheuniverse`
+3. **Root directory:** `catalog/web`
 4. **Build command:** `npm run build`
-5. **Publish directory:** `catalog/web/dist`
-6. **Environment variables:**
+5. **Build output:** `dist`
+6. **Environment variables** (Production):
 
    | Key | Value |
    | --- | --- |
    | `VITE_API_BASE` | `https://api.willbound.haleappsllc.com` |
    | `VITE_ADMIN_TOKEN` | Same as API `ADMIN_TOKEN` |
 
-7. **Domain management** → Add custom domain → `willbound.haleappsllc.com`
+7. **Custom domains** → Add `willbound.haleappsllc.com`
 
-### Option B — netlify.toml (already in `catalog/web/`)
+### CLI deploy (manual)
 
-Netlify reads `netlify.toml` automatically when base dir is `catalog/web`.
+```powershell
+cd catalog/web
+$env:VITE_API_BASE = "https://api.willbound.haleappsllc.com"
+$env:VITE_ADMIN_TOKEN = "your-secret"
+npm run build
+wrangler pages deploy dist --project-name willbound-catalog --branch main
+```
+
+SPA routing uses `public/_redirects`.
 
 ---
 
-## 3. DNS (haleappsllc.com)
+## 2. Catalog API — container host
 
-Wherever DNS is managed (Netlify DNS or registrar):
+The API is a Node server (`npm run api`) with Postgres and file uploads. It does not run on Cloudflare Workers without a rewrite. Deploy the Docker image from `catalog/Dockerfile` to any container host.
 
-| Type | Name | Target |
-| --- | --- | --- |
-| CNAME | `willbound` | `<your-netlify-site>.netlify.app` |
-| CNAME | `api.willbound` | `<your-railway-hostname>` |
+### Fly.io (example)
 
-If using Netlify DNS for the apex domain, add both records in the Netlify domain panel.
+```powershell
+cd catalog
+fly launch --name willbound-catalog-api --no-deploy
+fly secrets set DATABASE_URL="..." DATABASE_SSL=true `
+  PUBLIC_BASE_URL="https://api.willbound.haleappsllc.com" `
+  CORS_ORIGIN="https://willbound.haleappsllc.com" `
+  ADMIN_TOKEN="your-secret"
+fly deploy
+```
+
+Note the Fly hostname (e.g. `willbound-catalog-api.fly.dev`).
+
+### Render / Railway
+
+- Root directory: `catalog`
+- Dockerfile: `catalog/Dockerfile`
+- Port: `8787` (or set `PORT` env var)
+- Same env vars as above
+
+---
+
+## 3. DNS — Cloudflare
+
+In **Cloudflare → haleappsllc.com → DNS**:
+
+| Type | Name | Target | Proxy |
+| --- | --- | --- | --- |
+| CNAME | `willbound` | `willbound-catalog.pages.dev` | Proxied |
+| CNAME | `api.willbound` | `<your-api-host>` | Proxied |
+
+If Pages custom domain is configured in the dashboard, Cloudflare may add the `willbound` record automatically.
 
 ---
 
 ## 4. Link from main site
 
-On [haleappsllc.com](https://haleappsllc.com), add under your apps list:
+On [haleappsllc.com](https://haleappsllc.com):
 
 ```html
 <a href="https://willbound.haleappsllc.com">WILLBOUND Card Catalog</a>
@@ -85,16 +114,15 @@ On [haleappsllc.com](https://haleappsllc.com), add under your apps list:
 
 ---
 
-## 5. Local dev workflow
+## 5. Local dev
 
-```bash
+```powershell
 # Terminal 1 — API + Supabase
 cd catalog
 npm run api
 
 # Terminal 2 — Admin UI (proxies /api → localhost:8787)
 cd catalog/web
-cp .env.example .env
 npm install
 npm run dev
 ```
@@ -103,17 +131,18 @@ Open http://localhost:5173
 
 ---
 
-## 6. Export to Unity after editing cards
+## 6. Export to Unity
 
-```bash
+```powershell
 cd catalog
 npm run export:unity
 ```
 
 ---
 
-## Security notes
+## Security
 
-- `VITE_ADMIN_TOKEN` is embedded in the built JS — fine for a small admin team; add Netlify password protection or OAuth later for public URLs.
+- `VITE_ADMIN_TOKEN` is embedded in the built JS — fine for a small admin team.
 - Never commit `.env` files.
 - Rotate Supabase DB password if it was shared in chat.
+- Use Cloudflare Access on `willbound.haleappsllc.com` for extra protection if needed.

@@ -25,6 +25,8 @@
 /catalog/web/dist/
 /catalog/web/package-lock.json
 /catalog/web/.env
+/catalog/web/.wrangler/
+/catalog/.wrangler/
 
 # Angular CLI and build artefacts
 /.angular-cli.json
@@ -37,3 +39,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local Netlify folder
+.netlify
