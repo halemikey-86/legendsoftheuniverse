@@ -143,6 +143,30 @@ Rules: **JPEG or PNG only**, max **8 MB**. Save the card first so it has an engi
 
 On the **Face** tab, `CardImageUpload` lets admins pick front/back files after the card is saved.
 
+### Bulk import from Unity `Assets/Cards`
+
+Import existing JPG/PNG art from the Unity project into the catalog (Fly API or local disk + Postgres):
+
+```bash
+cd catalog
+# Preview matches without uploading
+npm run import:images:dry
+
+# Upload to production API (uses ADMIN_TOKEN from .env)
+npm run import:images
+
+# Or local dev API + catalog/uploads/
+npm run import:images:local
+```
+
+Custom assets path:
+
+```bash
+node scripts/import-assets-images.mjs --assets "../Assets/Cards" --dry-run
+```
+
+**James The Endless** filenames (`Companion_EddieTheProfessorBravo.jpg`, etc.) map to `endless-01` … `endless-10`. Other sets use fuzzy name matching — cards must exist in the database first (create them in the admin UI or extend the seed).
+
 ### Unity export
 
 `npm run export:unity` writes JSON plus copies images to:
