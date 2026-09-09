@@ -14,6 +14,17 @@
 
 # Environment files
 /.env
+/catalog/.env
+
+# Catalog (Node)
+/catalog/node_modules/
+/catalog/dist/
+/catalog/uploads/
+/catalog/package-lock.json
+/catalog/web/node_modules/
+/catalog/web/dist/
+/catalog/web/package-lock.json
+/catalog/web/.env
 
 # Angular CLI and build artefacts
 /.angular-cli.json

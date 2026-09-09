@@ -1,0 +1,41 @@
+{
+  "schemaVersion": "1.2",
+  "keywords": [],
+  "hunted": 0,
+  "aftereffect": null,
+  "mend": 0,
+  "doubleteam": 0,
+  "startsInPlay": true,
+  "id": "endless-01",
+  "set": "James The Endless",
+  "number": "01/50",
+  "series": "10th Planet",
+  "name": "James \"The Endless\"",
+  "type": "Icon",
+  "subtype": "Endless",
+  "role": null,
+  "frame": "gold",
+  "willCost": 0,
+  "storeWorth": 0,
+  "honorCost": 0,
+  "honorGain": 0,
+  "strike": 3,
+  "guard": 4,
+  "health": 8,
+  "abilities": [
+    {
+      "name": "Endless",
+      "timing": "replacement",
+      "costWill": 0,
+      "costHonor": 0,
+      "oncePerTurn": false,
+      "oncePerGame": true,
+      "target": "self",
+      "text": "When this Icon would be Removed, set its Health to 1 instead."
+    }
+  ],
+  "spells": [],
+  "flavor": "You can knock me down. You cannot keep me down.",
+  "artPrompt": "",
+  "notes": "Rebalanced from 7/7/7. Save does not grant Will."
+}

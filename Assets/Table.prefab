@@ -1,0 +1,351 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &8280717893725965024
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 6540175856232384187}
+  - component: {fileID: 9182736450192837465}
+  - component: {fileID: 8374728193847561021}
+  - component: {fileID: 8374728193847561022}
+  - component: {fileID: 8374728193847561023}
+  - component: {fileID: 8374728193847561026}
+  - component: {fileID: 8374728193847561028}
+  - component: {fileID: 8374728193847561029}
+  - component: {fileID: 8374728193847561030}
+  - component: {fileID: 8374728193847561031}
+  m_Layer: 0
+  m_Name: Table
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &6540175856232384187
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 7283645566778899002}
+  - {fileID: 8374728193847561025}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &9182736450192837465
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f8a2c1d34e5b6789012345678abcdef0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tableCamera: {fileID: 0}
+  cameraHeight: 10
+  orthographic: 1
+  orthographicSize: 10
+  matRoot: {fileID: 7283645566778899002}
+  playmatMaterial: {fileID: 2100000, guid: b7c3d4e5f6a7890123456789abcdef12, type: 2}
+  playmatTexture: {fileID: 2800000, guid: 031cf6fc9ea4aa54888a630ea52e9f53, type: 3}
+  matSize: {x: 20, y: 9}
+  matPosition: {x: 0, y: 0, z: 2}
+--- !u!114 &8374728193847561021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1e2d3c4b5a697887766554433221100, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+  storeSlotCount: 7
+  rowCenter: {x: -1.2, y: 0.05, z: 5.2}
+  rowSpacing: 2.35
+  storeCardScale: 3.5
+  cardLift: 0.03
+  listAnchor: {x: -8.8, y: 0.05, z: 4.4}
+  listVerticalSpacing: 3.1
+  dealDuration: 0.22
+  dealStagger: 0.04
+  flipDuration: 0.18
+  flipStagger: 0.025
+  layoutAnimDuration: 0.35
+--- !u!114 &8374728193847561022
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f0b8ec14bd11b9e48b3b8b8134520fa4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+  openingHandSize: 7
+  dealScale: 9
+  dealHandCenter: {x: 0, y: 0.04, z: -1.8}
+  dealSpreadSpacing: 3.1
+  dealDuration: 0.35
+  keptScale: 4
+  keptHandCenter: {x: 0, y: 0.04, z: -3.3}
+  keptSpreadSpacing: 2.6
+  keepAnimDuration: 0.45
+  hoverScaleMultiplier: 1.14
+  hoverLift: 0.06
+  hoverForward: 0.18
+  hoverAnimDuration: 0.12
+  inspectScale: 10
+  inspectPosition: {x: 0, y: 0.06, z: -1.5}
+  inspectAnimDuration: 0.25
+--- !u!114 &8374728193847561023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d589b11658f9024f88081a2ecb0ab69, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  handView: {fileID: 8374728193847561022}
+  storeView: {fileID: 8374728193847561021}
+  storeActions: {fileID: 8374728193847561026}
+  legendaryPickView: {fileID: 8374728193847561028}
+  iconSlotView: {fileID: 8374728193847561029}
+  deckPoint: {fileID: 8374728193847561025}
+--- !u!114 &8374728193847561028
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a8b9c0d1e2f31425364758697a8b9c0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+  pickCenter: {x: 0, y: 0.05, z: -0.5}
+  pickSpacing: 4.2
+  pickCardScale: 5.5
+  selectedScale: 5.5
+  pickAnimDuration: 0.35
+--- !u!114 &8374728193847561029
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b9c0d1e2f32435465768798a9b0c1d2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+  slotPosition: {x: -5.2, y: 0.05, z: 0.6}
+  iconScale: 5.5
+  placeAnimDuration: 0.4
+--- !u!114 &8374728193847561026
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc71114d1a9c423a938b40ab90d052e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  handView: {fileID: 8374728193847561022}
+  storeView: {fileID: 8374728193847561021}
+  deckPoint: {fileID: 8374728193847561025}
+  outZonePosition: {x: -9.2, y: 0.05, z: 2.1}
+  actionAnimDuration: 0.35
+--- !u!114 &8374728193847561030
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aaccbbdd112233445566778899aabbcc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &8374728193847561031
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 112233445566778899aabbccddeeff00, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+--- !u!1 &8374728193847561024
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8374728193847561025}
+  - component: {fileID: 8374728193847561027}
+  m_Layer: 0
+  m_Name: SupplyDeck
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8374728193847561025
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8374728193847561024}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -8.6, y: 0.05, z: 5.2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6540175856232384187}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &8374728193847561027
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8374728193847561024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7f8a9b0c1d243859607182938475012, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+  deckCardScale: 3.5
+  maxVisibleLayers: 6
+  layerHeightOffset: 0.004
+  layerDepthOffset: 0.045
+  countWorldOffset: {x: 0, y: 0, z: -1.2}
+  countScreenSize: {x: 88, y: 40}
+  countFontSize: 28
+--- !u!1 &7283645566778899001
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7283645566778899002}
+  - component: {fileID: 7283645566778899003}
+  - component: {fileID: 7283645566778899004}
+  m_Layer: 0
+  m_Name: Playmat
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7283645566778899002
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7283645566778899001}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 2}
+  m_LocalScale: {x: 2, y: 1, z: 0.9}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6540175856232384187}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
+--- !u!33 &7283645566778899003
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7283645566778899001}
+  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &7283645566778899004
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7283645566778899001}
+  m_Enabled: 1
+  m_CastShadows: 0
+  m_ReceiveShadows: 0
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 0
+  m_ReflectionProbeUsage: 0
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: b7c3d4e5f6a7890123456789abcdef12, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}

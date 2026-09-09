@@ -1,0 +1,28 @@
+{
+  "name": "willbound-catalog",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:seed": "node scripts/migrate.mjs",
+    "export": "node scripts/export-engine-json.mjs",
+    "export:unity": "node scripts/export-engine-json.mjs \"../../Legends Of The Universe/Assets/StreamingAssets/willbound-cards.json\"",
+    "api": "tsx api/server.ts",
+    "api:dev": "tsx watch api/server.ts",
+    "web:dev": "npm run dev --prefix web",
+    "web:build": "npm run build --prefix web"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "dotenv": "^16.6.1",
+    "pg": "^8.16.3",
+    "zod": "^4.4.0"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

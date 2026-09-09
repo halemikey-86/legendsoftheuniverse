@@ -1,0 +1,22 @@
+services:
+  # Optional local dev only — use Supabase in production (see SUPABASE.md)
+  postgres:
+    image: postgres:16-alpine
+    container_name: willbound-catalog-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-willbound}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-willbound_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-willbound}
+    volumes:
+      - willbound_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-willbound} -d ${POSTGRES_DB:-willbound}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  willbound_pgdata:
