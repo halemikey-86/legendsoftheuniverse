@@ -10,8 +10,8 @@ COPY web/src/lib ./web/src/lib
 COPY scripts ./scripts
 
 ENV NODE_ENV=production
-ENV UPLOAD_DIR=/tmp/uploads
-RUN mkdir -p /tmp/uploads
+ENV UPLOAD_DIR=/data/uploads
+RUN mkdir -p /data/uploads
 
 EXPOSE 8787
 
