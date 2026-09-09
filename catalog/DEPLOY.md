@@ -3,7 +3,7 @@
 | Host | What |
 | --- | --- |
 | **willbound.haleappsllc.com** | Admin UI (Cloudflare Pages) |
-| **api.willbound.haleappsllc.com** | Catalog API (container host, DNS via Cloudflare) |
+| **api.willbound.haleappsllc.com** | Catalog API (Fly.io) |
 | **Supabase** | Postgres (already configured) |
 
 DNS for **haleappsllc.com** lives in **Cloudflare**. Pages serves the static admin UI; the Node API runs in a container (Fly.io, Render, or Railway) and is reached through a Cloudflare CNAME.
@@ -64,30 +64,32 @@ SPA routing uses `public/_redirects`.
 
 ---
 
-## 2. Catalog API — container host
+## 2. Catalog API — Fly.io
 
-The API is a Node server (`npm run api`) with Postgres and file uploads. It does not run on Cloudflare Workers without a rewrite. Deploy the Docker image from `catalog/Dockerfile` to any container host.
+The API is a Node server with Postgres and file uploads. `catalog/fly.toml` and `catalog/Dockerfile` are ready.
 
-### Fly.io (example)
+```powershell
+# One-time login
+flyctl auth login
+
+# Deploy (reads catalog/.env, creates app + volume + secrets)
+.\catalog\scripts\setup-fly.ps1
+```
+
+Or manually:
 
 ```powershell
 cd catalog
-fly launch --name willbound-catalog-api --no-deploy
-fly secrets set DATABASE_URL="..." DATABASE_SSL=true `
-  PUBLIC_BASE_URL="https://api.willbound.haleappsllc.com" `
-  CORS_ORIGIN="https://willbound.haleappsllc.com" `
-  ADMIN_TOKEN="your-secret"
-fly deploy
+flyctl apps create willbound-catalog-api
+flyctl volumes create willbound_uploads --region iad --size 1 -a willbound-catalog-api
+flyctl secrets set DATABASE_URL="..." PUBLIC_BASE_URL="https://api.willbound.haleappsllc.com" `
+  CORS_ORIGIN="https://willbound.haleappsllc.com,https://willbound-catalog.pages.dev" `
+  ADMIN_TOKEN="your-secret" -a willbound-catalog-api
+flyctl deploy
+flyctl certs add api.willbound.haleappsllc.com -a willbound-catalog-api
 ```
 
-Note the Fly hostname (e.g. `willbound-catalog-api.fly.dev`).
-
-### Render / Railway
-
-- Root directory: `catalog`
-- Dockerfile: `catalog/Dockerfile`
-- Port: `8787` (or set `PORT` env var)
-- Same env vars as above
+Note the Fly hostname (e.g. `willbound-catalog-api.fly.dev`) for DNS.
 
 ---
 

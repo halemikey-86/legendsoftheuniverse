@@ -233,7 +233,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
+server.listen(port, "0.0.0.0", () => {
   console.log(`WILLBOUND catalog API on http://localhost:${port}`);
   console.log(`Uploads: ${process.env.UPLOAD_DIR ?? "catalog/uploads"}`);
   console.log(`CORS origins: ${corsOrigins.join(", ")}`);
