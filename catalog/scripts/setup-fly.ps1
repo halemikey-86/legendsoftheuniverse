@@ -2,10 +2,17 @@
 # Run from repo root after: flyctl auth login
 
 $ErrorActionPreference = "Stop"
-$Fly = Join-Path $env:USERPROFILE ".fly\bin\flyctl.exe"
+$FlyWarning = "Continue"
+
+# flyctl installs to ~/.fly/bin — add to PATH for this session
+$FlyBin = Join-Path $env:USERPROFILE ".fly\bin"
+if (Test-Path $FlyBin) {
+  $env:Path = "$FlyBin;$env:Path"
+}
+$Fly = Join-Path $FlyBin "flyctl.exe"
 if (-not (Test-Path $Fly)) { $Fly = "flyctl" }
 
-$Catalog = Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) "catalog"
+$Catalog = Split-Path $PSScriptRoot -Parent
 $EnvFile = Join-Path $Catalog ".env"
 $WebDomain = "https://willbound.haleappsllc.com"
 $PagesDomain = "https://willbound-catalog.pages.dev"
@@ -22,11 +29,12 @@ function Read-DotEnv([string]$Path) {
   return $vars
 }
 
-Write-Host "`n=== WILLBOUND API · Fly.io ===" -ForegroundColor Cyan
+Write-Host "`n=== WILLBOUND API / Fly.io ===" -ForegroundColor Cyan
 
 & $Fly auth whoami | Out-Null
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "Run: flyctl auth login" -ForegroundColor Yellow
+  Write-Host "Not logged in. Run:" -ForegroundColor Yellow
+  Write-Host "  & `"$Fly`" auth login" -ForegroundColor White
   exit 1
 }
 
@@ -39,13 +47,12 @@ if (-not $adminToken -or $adminToken -eq "change-me-before-sharing") {
   $bytes = New-Object byte[] 32
   [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
   $adminToken = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-  Write-Host "Generated ADMIN_TOKEN — update Cloudflare Pages VITE_ADMIN_TOKEN to match." -ForegroundColor Yellow
+  Write-Host "Generated ADMIN_TOKEN - update Cloudflare Pages VITE_ADMIN_TOKEN to match." -ForegroundColor Yellow
 }
 
 Push-Location $Catalog
 try {
-  & $Fly apps list --json 2>$null | Out-Null
-  $appExists = (& $Fly apps list --json | ConvertFrom-Json) | Where-Object { $_.Name -eq "willbound-catalog-api" }
+  $appExists = (& $Fly apps list --json 2>&1 | Out-String | ConvertFrom-Json) | Where-Object { $_.Name -eq "willbound-catalog-api" }
 
   if (-not $appExists) {
     Write-Host "Creating app willbound-catalog-api..."
