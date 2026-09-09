@@ -76,6 +76,47 @@ function NumberField({
   );
 }
 
+function SuggestionInput({
+  id,
+  label,
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  maxLength = 60,
+  required,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+  maxLength?: number;
+  required?: boolean;
+}) {
+  const listId = `${id}-suggestions`;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        list={listId}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        required={required}
+      />
+      <datalist id={listId}>
+        {suggestions.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
 function ToggleChip({
   active,
   onClick,
@@ -108,6 +149,8 @@ export function CardForm({
   submitLabel,
   onSubmit,
   onCancel,
+  setSuggestions = [...SETS],
+  seriesSuggestions = [...SERIES],
 }: {
   value: Card;
   onChange: (next: Card) => void;
@@ -115,6 +158,8 @@ export function CardForm({
   submitLabel: string;
   onSubmit: (input: CardInput) => void;
   onCancel: () => void;
+  setSuggestions?: string[];
+  seriesSuggestions?: string[];
 }) {
   const [tab, setTab] = useState<EditorTab>("Face");
   const [error, setError] = useState<string | null>(null);
@@ -276,21 +321,15 @@ export function CardForm({
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label>Set</Label>
-                <Select value={value.set} onValueChange={(v) => set("set", v)}>
-                  <SelectTrigger aria-label="Set">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SETS.map((set) => (
-                      <SelectItem key={set} value={set}>
-                        {set}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <SuggestionInput
+                id="card-set"
+                label="Set"
+                value={value.set}
+                onChange={(v) => set("set", v)}
+                suggestions={setSuggestions}
+                placeholder="James The Endless"
+                required
+              />
 
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="card-number">Number</Label>
@@ -303,25 +342,14 @@ export function CardForm({
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <Label>Series</Label>
-                <Select
-                  value={value.series || "__none__"}
-                  onValueChange={(v) => set("series", v === "__none__" ? "" : v)}
-                >
-                  <SelectTrigger aria-label="Series">
-                    <SelectValue placeholder="Series" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">None</SelectItem>
-                    {SERIES.map((series) => (
-                      <SelectItem key={series} value={series}>
-                        {series}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <SuggestionInput
+                id="card-series"
+                label="Series"
+                value={value.series}
+                onChange={(v) => set("series", v)}
+                suggestions={seriesSuggestions}
+                placeholder="10th Planet, Movies, Video Games…"
+              />
 
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="card-id">Engine id</Label>

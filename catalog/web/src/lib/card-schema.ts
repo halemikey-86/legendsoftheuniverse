@@ -52,15 +52,24 @@ export const TIMINGS = [
 ] as const;
 export type Timing = (typeof TIMINGS)[number];
 
+/** Common sets — free text is allowed; these power datalist suggestions. */
 export const SETS = [
   "James The Endless",
   "10th Planet",
   "Mostorno",
   "Politics of Time",
   "Classic Cartoon",
+  "Aliens",
+  "Goblin King",
+  "History's Finest",
+  "Oval Years",
+  "Rise of Pride",
+  "River Merchant",
+  "Scooby-Doo",
 ] as const;
 export type SetName = (typeof SETS)[number];
 
+/** Common series — free text is allowed; these power datalist suggestions. */
 export const SERIES = [
   "History",
   "Movies",
@@ -69,6 +78,16 @@ export const SERIES = [
   "Politics of Time",
   "10th Planet",
 ] as const;
+
+export function mergeSuggestions(known: readonly string[], values: Iterable<string>): string[] {
+  const out = new Set<string>();
+  for (const item of known) out.add(item);
+  for (const item of values) {
+    const trimmed = item.trim();
+    if (trimmed) out.add(trimmed);
+  }
+  return [...out].sort((a, b) => a.localeCompare(b));
+}
 
 export const SET_SLUGS: Record<string, string> = {
   "James The Endless": "endless",

@@ -7,6 +7,7 @@ import {
   COST_FILTERS,
   FRAMES,
   KEYWORDS,
+  mergeSuggestions,
   SERIES,
   SETS,
   SORTS,
@@ -142,6 +143,22 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
 
   const cards = cardsQuery.data ?? [];
   const total = statsQuery.data?.total ?? initialCards.length;
+
+  const libraryQuery = useQuery({
+    queryKey: ["cards", "library-names"],
+    queryFn: () => searchCards(emptySearch()),
+    staleTime: 60_000,
+  });
+  const libraryCards = libraryQuery.data ?? initialCards;
+
+  const setOptions = useMemo(
+    () => mergeSuggestions(SETS, libraryCards.map((c) => c.set)),
+    [libraryCards],
+  );
+  const seriesOptions = useMemo(
+    () => mergeSuggestions(SERIES, libraryCards.map((c) => c.series)),
+    [libraryCards],
+  );
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -298,14 +315,14 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
                 label="Set"
                 value={draft.set}
                 allLabel="All sets"
-                options={SETS.map((set) => ({ value: set, label: set }))}
+                options={setOptions.map((set) => ({ value: set, label: set }))}
                 onChange={(value) => setFilter("set", value)}
               />
               <FilterSelect
                 label="Series"
                 value={draft.series}
                 allLabel="All series"
-                options={SERIES.map((series) => ({ value: series, label: series }))}
+                options={seriesOptions.map((series) => ({ value: series, label: series }))}
                 onChange={(value) => setFilter("series", value)}
               />
               <FilterSelect
@@ -516,6 +533,8 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
           <CardForm
             value={formValue}
             onChange={setFormValue}
+            setSuggestions={setOptions}
+            seriesSuggestions={seriesOptions}
             submitting={createMutation.isPending || updateMutation.isPending}
             submitLabel={formMode === "edit" ? "Save to catalog" : "Print into catalog"}
             onCancel={() => setFormMode(null)}
