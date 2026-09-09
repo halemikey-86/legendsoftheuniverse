@@ -12,6 +12,8 @@
     "import:images": "node scripts/import-assets-images.mjs --api https://willbound-catalog-api.fly.dev",
     "import:images:dry": "node scripts/import-assets-images.mjs --api https://willbound-catalog-api.fly.dev --dry-run",
     "import:images:local": "node scripts/import-assets-images.mjs --local",
+    "sync:assets:dry": "node scripts/sync-assets-catalog.mjs --api https://willbound-catalog-api.fly.dev --dry-run",
+    "sync:assets": "node scripts/sync-assets-catalog.mjs --api https://willbound-catalog-api.fly.dev",
     "api": "tsx api/server.ts",
     "api:dev": "tsx watch api/server.ts",
     "web:dev": "npm run dev --prefix web",

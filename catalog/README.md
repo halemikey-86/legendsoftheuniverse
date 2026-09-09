@@ -167,6 +167,18 @@ node scripts/import-assets-images.mjs --assets "../Assets/Cards" --dry-run
 
 **James The Endless** filenames (`Companion_EddieTheProfessorBravo.jpg`, etc.) map to `endless-01` … `endless-10`. Other sets use fuzzy name matching — cards must exist in the database first (create them in the admin UI or extend the seed).
 
+### Full sync — create stub cards + upload art
+
+Creates catalog entries from `Assets/Cards` filenames (type from prefix, name from file, placeholder stats) and uploads front art:
+
+```bash
+cd catalog
+npm run sync:assets:dry    # preview
+npm run sync:assets        # push to Fly API + Supabase
+```
+
+Stub cards get a note: *Auto-imported from Assets/Cards*. Edit stats and abilities in the admin UI afterward.
+
 ### Unity export
 
 `npm run export:unity` writes JSON plus copies images to:
