@@ -1,12 +1,29 @@
+import { getAdminToken } from "@/lib/admin-token";
+import { API_BASE } from "@/lib/api-base";
 import type { Card, CardInput, CardSearch } from "./card-schema";
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? "";
+/** Serve uploads from the same host the UI uses for API calls (Fly URL until custom DNS is live). */
+function normalizeImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!API_BASE) return url;
+  const uploadsIndex = url.indexOf("/uploads/");
+  if (uploadsIndex === -1) return url;
+  return `${API_BASE.replace(/\/$/, "")}${url.slice(uploadsIndex)}`;
+}
+
+function withImageUrls<T extends Card>(card: T): T {
+  return {
+    ...card,
+    frontImageUrl: normalizeImageUrl(card.frontImageUrl),
+    backImageUrl: normalizeImageUrl(card.backImageUrl),
+  };
+}
 
 function authHeaders(json = true): HeadersInit {
   const headers: Record<string, string> = {};
   if (json) headers["Content-Type"] = "application/json";
-  if (ADMIN_TOKEN) headers.Authorization = `Bearer ${ADMIN_TOKEN}`;
+  const token = getAdminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
 }
 
@@ -29,7 +46,8 @@ function toQuery(filters: CardSearch): string {
 }
 
 export async function searchCards(filters: CardSearch): Promise<Card[]> {
-  return request<Card[]>(`/api/cards${toQuery(filters)}`);
+  const cards = await request<Card[]>(`/api/cards${toQuery(filters)}`);
+  return cards.map(withImageUrls);
 }
 
 export async function getLibraryStats(): Promise<{ total: number }> {
@@ -42,7 +60,7 @@ export async function createCard(input: CardInput): Promise<Card> {
     headers: authHeaders(),
     body: JSON.stringify(input),
   });
-  return result.card;
+  return withImageUrls(result.card);
 }
 
 export async function updateCard(input: CardInput & { originalId: string }): Promise<Card> {
@@ -55,7 +73,7 @@ export async function updateCard(input: CardInput & { originalId: string }): Pro
       body: JSON.stringify(data),
     },
   );
-  return result.card;
+  return withImageUrls(result.card);
 }
 
 export async function deleteCard(id: string): Promise<void> {

@@ -16,6 +16,7 @@ namespace LegendsOfTheUniverse.Presentation
         const string DefaultPlaymatTexturePath = "Assets/Playmats/10th Planet.jpg";
         const string FallbackPlaymatTexturePath = "Assets/Cards/TableBackground.png";
         const string DefaultPlaymatMaterialPath = "Assets/Materials/Playmat.mat";
+        const string DefaultArenaPrefabPath = "Assets/Arenas/10thPlanetDojo/10thPlanetDojo";
         static readonly Color MidnightNavy = new(0.05f, 0.08f, 0.18f);
         static readonly Quaternion TopDownRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
         static readonly Quaternion PlaymatRotation = Quaternion.Euler(0f, 180f, 0f);
@@ -26,6 +27,11 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] bool orthographic = true;
         [SerializeField] float orthographicSize = PlaymatZones.RecommendedOrthoSize;
 
+        [Header("Arena (optional — 3D environment under the mat)")]
+        [SerializeField] Transform arenaRoot;
+        [SerializeField] GameObject arenaPrefab;
+        [SerializeField] float playmatLiftWhenArenaPresent = 0.025f;
+
         [Header("Playmat")]
         [SerializeField] Transform matRoot;
         [SerializeField] Material playmatMaterial;
@@ -33,6 +39,8 @@ namespace LegendsOfTheUniverse.Presentation
         [Tooltip("Plane size in world units. X = width, Y = depth (vertical on screen).")]
         [SerializeField] Vector2 matSize = new(PlaymatZones.MatWidth, PlaymatZones.MatDepth);
         [SerializeField] Vector3 matPosition = PlaymatZones.MatCenter;
+
+        float lastFitAspect;
 
 #if UNITY_EDITOR
         bool validateQueued;
@@ -43,11 +51,71 @@ namespace LegendsOfTheUniverse.Presentation
             EnsurePlaymatAssets();
         }
 
+        DojoArenaView dojoArena;
+
         void Awake()
         {
+            dojoArena = GetComponent<DojoArenaView>();
             EnsurePlaymatAssets();
+            EnsureArenaPrefab();
             SetupCamera();
+            SetupArena();
             SetupMat();
+        }
+
+        bool HideFlatPlaymatForMesh =>
+            dojoArena != null && dojoArena.HasVisibleMeshPlaymat;
+
+        void EnsureArenaPrefab()
+        {
+            if (arenaPrefab != null)
+                return;
+
+#if UNITY_EDITOR
+            arenaPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DefaultArenaPrefabPath);
+            if (arenaPrefab == null)
+                arenaPrefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{DefaultArenaPrefabPath}.prefab");
+#endif
+        }
+
+        void SetupArena()
+        {
+            if (dojoArena != null)
+            {
+                dojoArena.BuildArena();
+                arenaRoot = dojoArena.transform;
+                return;
+            }
+
+            if (arenaRoot == null && arenaPrefab != null)
+            {
+                var instance = Instantiate(arenaPrefab, transform);
+                instance.name = arenaPrefab.name;
+                arenaRoot = instance.transform;
+                arenaRoot.localPosition = Vector3.zero;
+                arenaRoot.localRotation = Quaternion.identity;
+            }
+
+            if (arenaRoot != null)
+                arenaRoot.SetSiblingIndex(0);
+        }
+
+        Vector3 GetMatLocalPosition()
+        {
+            var pos = matPosition;
+            if (arenaRoot != null)
+                pos.y += playmatLiftWhenArenaPresent;
+            return pos;
+        }
+
+        void LateUpdate()
+        {
+            if (!orthographic || tableCamera == null)
+                return;
+
+            var aspect = tableCamera.aspect > 0.01f ? tableCamera.aspect : (16f / 9f);
+            if (Mathf.Abs(aspect - lastFitAspect) > 0.001f)
+                FitCameraToPlaymat();
         }
 
         void EnsurePlaymatAssets()
@@ -88,16 +156,20 @@ namespace LegendsOfTheUniverse.Presentation
                 ownsCamera = true;
             }
 
+            var bounds = PlaymatZones.GetTableContentBounds(PlaymatZones.TableFitMargin);
+            var lookAt = new Vector3(bounds.CenterX, 0f, bounds.CenterZ);
+
             if (ownsCamera || tableCamera.transform.IsChildOf(transform))
             {
                 var cameraTransform = tableCamera.transform;
                 cameraTransform.SetParent(transform, false);
-                cameraTransform.localPosition = new Vector3(0f, cameraHeight, 0f);
+                var localLookAt = transform.InverseTransformPoint(lookAt);
+                cameraTransform.localPosition = new Vector3(localLookAt.x, cameraHeight, localLookAt.z);
                 cameraTransform.localRotation = TopDownRotation;
             }
             else
             {
-                tableCamera.transform.position = transform.position + new Vector3(0f, cameraHeight, 0f);
+                tableCamera.transform.position = lookAt + new Vector3(0f, cameraHeight, 0f);
                 tableCamera.transform.rotation = TopDownRotation;
             }
 
@@ -122,7 +194,8 @@ namespace LegendsOfTheUniverse.Presentation
             if (matRoot == null)
                 return;
 
-            matRoot.localPosition = matPosition;
+            matRoot.gameObject.SetActive(!HideFlatPlaymatForMesh);
+            matRoot.localPosition = GetMatLocalPosition();
             matRoot.localRotation = PlaymatRotation;
             matRoot.localScale = GetMatScale();
             ApplyMatMaterial();
@@ -134,7 +207,7 @@ namespace LegendsOfTheUniverse.Presentation
             var matObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
             matObject.name = "Playmat";
             matObject.transform.SetParent(transform, false);
-            matObject.transform.localPosition = matPosition;
+            matObject.transform.localPosition = GetMatLocalPosition();
             matObject.transform.localRotation = PlaymatRotation;
 
             var collider = matObject.GetComponent<Collider>();
@@ -179,6 +252,27 @@ namespace LegendsOfTheUniverse.Presentation
             SetupMat();
         }
 
+        [ContextMenu("Clear Arena Instance")]
+        void ClearArenaInstance()
+        {
+            if (arenaRoot == null)
+                return;
+
+            var arena = arenaRoot.gameObject;
+            arenaRoot = null;
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                Undo.DestroyObjectImmediate(arena);
+                MarkDirty();
+                return;
+            }
+#endif
+
+            Destroy(arena);
+        }
+
         [ContextMenu("Restore Playmat Assets")]
         void RestorePlaymatAssets()
         {
@@ -193,11 +287,11 @@ namespace LegendsOfTheUniverse.Presentation
             if (!orthographic || tableCamera == null)
                 return;
 
-            var halfDepth = matSize.y * 0.5f;
-            var halfWidth = matSize.x * 0.5f;
+            var bounds = PlaymatZones.GetTableContentBounds(PlaymatZones.TableFitMargin);
             var aspect = tableCamera.aspect > 0.01f ? tableCamera.aspect : (16f / 9f);
-            var sizeForWidth = halfWidth / aspect;
-            tableCamera.orthographicSize = Mathf.Max(orthographicSize, halfDepth + 0.5f, sizeForWidth + 0.5f);
+            var sizeForWidth = bounds.HalfWidth / aspect;
+            tableCamera.orthographicSize = Mathf.Max(orthographicSize, bounds.HalfDepth, sizeForWidth);
+            lastFitAspect = aspect;
         }
 
         void ApplyMatMaterial()
@@ -284,6 +378,7 @@ namespace LegendsOfTheUniverse.Presentation
                 return;
 
             EnsurePlaymatAssets();
+            EnsureArenaPrefab();
             SetupCamera();
 
             validateQueued = true;

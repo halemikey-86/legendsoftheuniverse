@@ -20,6 +20,12 @@ import {
   validateOnly,
 } from "../web/src/lib/cards-db.js";
 import {
+  addTaxonomyEntry,
+  deleteTaxonomyEntry,
+  getTaxonomyOptions,
+  listTaxonomyEntries,
+} from "../web/src/lib/taxonomy-db.js";
+import {
   contentTypeForPath,
   deleteCardImage,
   ensureUploadRoot,
@@ -47,10 +53,28 @@ const adminToken = process.env.ADMIN_TOKEN ?? "";
 ensureUploadRoot();
 const sqlPromise = createSql(connectionString);
 
+/** Cloudflare Pages preview URLs use unique subdomains — allow them when token auth is required anyway. */
+function isOriginAllowed(origin: string): boolean {
+  if (corsOrigins.includes(origin)) return true;
+
+  try {
+    const { hostname, protocol } = new URL(origin);
+    if (protocol !== "http:" && protocol !== "https:") return false;
+    if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
+    // Production + branch preview deployments (*.pages.dev)
+    if (hostname.endsWith(".pages.dev")) return true;
+    if (hostname.endsWith("willbound.haleappsllc.com")) return true;
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
 function corsHeaders(req?: http.IncomingMessage) {
   const requestOrigin = req?.headers.origin;
   const allowOrigin =
-    requestOrigin && corsOrigins.includes(requestOrigin)
+    requestOrigin && isOriginAllowed(requestOrigin)
       ? requestOrigin
       : corsOrigins[0] ?? "*";
 
@@ -138,6 +162,17 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && path === "/api/auth/check") {
+      try {
+        requireAdmin(req);
+        json(res, 200, { ok: true }, req);
+      } catch {
+        // 200 avoids noisy browser console errors; client reads ok: false
+        json(res, 200, { ok: false }, req);
+      }
+      return;
+    }
+
     if (req.method === "GET" && path === "/api/cards/stats") {
       json(res, 200, await getLibraryStats(sql), req);
       return;
@@ -145,6 +180,41 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && path === "/api/cards/export") {
       json(res, 200, await exportEngineCatalog(sql), req);
+      return;
+    }
+
+    if (req.method === "GET" && path === "/api/taxonomy") {
+      const [options, entries] = await Promise.all([
+        getTaxonomyOptions(sql),
+        listTaxonomyEntries(sql),
+      ]);
+      json(res, 200, { ...options, entries }, req);
+      return;
+    }
+
+    if (req.method === "POST" && path === "/api/taxonomy") {
+      requireAdmin(req);
+      const body = (await readBody(req)) as {
+        kind?: string;
+        name?: string;
+        code?: string | null;
+      };
+      if (body.kind !== "set" && body.kind !== "series") {
+        throw new Error('kind must be "set" or "series"');
+      }
+      const entry = await addTaxonomyEntry(sql, body.kind, body.name ?? "", body.code);
+      const options = await getTaxonomyOptions(sql);
+      json(res, 201, { entry, ...options }, req);
+      return;
+    }
+
+    if (req.method === "DELETE" && path.startsWith("/api/taxonomy/")) {
+      requireAdmin(req);
+      const id = Number(path.slice("/api/taxonomy/".length));
+      if (!Number.isInteger(id) || id <= 0) throw new Error("Invalid taxonomy id");
+      await deleteTaxonomyEntry(sql, id);
+      const options = await getTaxonomyOptions(sql);
+      json(res, 200, options, req);
       return;
     }
 

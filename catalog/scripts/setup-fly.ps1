@@ -16,7 +16,8 @@ $Catalog = Split-Path $PSScriptRoot -Parent
 $EnvFile = Join-Path $Catalog ".env"
 $WebDomain = "https://willbound.haleappsllc.com"
 $PagesDomain = "https://willbound-catalog.pages.dev"
-$ApiDomain = "https://api.willbound.haleappsllc.com"
+$ApiDomain = "https://willbound-catalog-api.fly.dev"
+$ApiDomainCustom = "https://api.willbound.haleappsllc.com"
 
 function Read-DotEnv([string]$Path) {
   $vars = @{}
@@ -80,7 +81,7 @@ try {
   $hostname = (& $Fly info -a willbound-catalog-api --json | ConvertFrom-Json).Hostname
   Write-Host "`n=== Done ===" -ForegroundColor Green
   Write-Host "API URL: https://$hostname"
-  Write-Host "Custom:  $ApiDomain (after DNS CNAME)"
+  Write-Host "Custom:  $ApiDomainCustom (after DNS CNAME — then update PUBLIC_BASE_URL + VITE_API_BASE)"
   Write-Host "`nDNS (Cloudflare or Namecheap):"
   Write-Host "  CNAME  api.willbound  ->  $hostname"
   Write-Host "`nCloudflare Pages env (must match):"

@@ -1,0 +1,73 @@
+{
+  "set": {
+    "code": "RM",
+    "name": "The River Merchant",
+    "icon": "The River Merchant",
+    "assetsFolder": "RiverMerchant",
+    "format": {
+      "deckSize": 60,
+      "maxCopies": 4,
+      "iconStartsInPlay": true,
+      "shuffle": 59
+    }
+  },
+  "assetMap": {
+    "Icon_RiverMerchant": "Legendary Icon_RiverMerchant"
+  },
+  "token": {
+    "id": "token-porter",
+    "fileKey": "Token_Porter",
+    "name": "Porter",
+    "type": "Token",
+    "typeLine": "TOKEN — COMPANION — STRIKER",
+    "role": "Striker",
+    "will": null,
+    "worth": null,
+    "strike": 1,
+    "guard": 0,
+    "health": 1,
+    "store": false,
+    "text": "No Store value. Vanishes when Removed.",
+    "createdBy": ["Ledger Boy", "Price Tag", "Bargemen's Dock"]
+  },
+  "cards": [
+    {"id":"rm-01","fileKey":"Icon_RiverMerchant","qty":1,"name":"The River Merchant","type":"Icon","typeLine":"Icon — Merchant","subtype":"Merchant","role":null,"will":0,"worth":0,"strike":2,"guard":2,"health":16,"keywords":[],"text":"Whenever you Buy or Trade, gain 1 Worth. Once per turn after you Sell: List without using your Store action.","flavor":"The river does not keep what it can sell.","collector":"RM · 01/60"},
+    {"id":"rm-02","fileKey":"Companion_DockRunner","qty":3,"name":"Dock Runner","type":"Companion","typeLine":"Companion — Striker","role":"Striker","will":1,"worth":1,"strike":1,"guard":0,"health":1,"keywords":[],"text":"When this enters the Field, you may Sell a card from your hand.","flavor":"Feet first. Coin second.","collector":"RM · 02/60"},
+    {"id":"rm-03","fileKey":"Companion_TallyClerk","qty":2,"name":"Tally Clerk","type":"Companion","typeLine":"Companion — Play Maker","role":"Play Maker","will":1,"worth":1,"strike":1,"guard":1,"health":2,"keywords":[],"text":"Once per turn: when you Buy, draw a card.","flavor":"He writes the name before you finish saying it.","collector":"RM · 03/60"},
+    {"id":"rm-04","fileKey":"Companion_Bargeman","qty":2,"name":"Bargeman","type":"Companion","typeLine":"Companion — Striker","role":"Striker","will":1,"worth":1,"strike":2,"guard":0,"health":1,"keywords":[],"text":"When this Presses, you may pay 1 Worth: this gets +2 Strike this Press.","flavor":"The pole is also a bill.","collector":"RM · 04/60"},
+    {"id":"rm-05","fileKey":"Companion_FerryKid","qty":1,"name":"Ferry Kid","type":"Companion","typeLine":"Companion — Tank","role":"Tank","will":1,"worth":1,"strike":0,"guard":2,"health":2,"keywords":[],"text":"The first time a Store card would be Rowed each turn, you may put it into your hand instead. If you do, pay 1 Worth.","flavor":"She knows which crate floats.","collector":"RM · 05/60"},
+    {"id":"rm-06","fileKey":"Companion_PurseCutter","qty":2,"name":"Purse Cutter","type":"Companion","typeLine":"Companion — Striker","role":"Striker","will":2,"worth":2,"strike":2,"guard":1,"health":2,"keywords":[],"text":"When this Presses an Icon, that player loses 1 Worth and you gain 1 Worth.","flavor":"A polite tax.","collector":"RM · 06/60"},
+    {"id":"rm-07","fileKey":"Companion_CustomsSergeant","qty":2,"name":"Customs Sergeant","type":"Companion","typeLine":"Companion — Tank","role":"Tank","will":2,"worth":2,"strike":1,"guard":3,"health":3,"keywords":["Toll 1"],"text":"Toll 1. Opponents pay 1 more Worth to Buy.","flavor":"The stamp is heavier than the crate.","collector":"RM · 07/60"},
+    {"id":"rm-08","fileKey":"Companion_StallAuntie","qty":2,"name":"Stall Auntie","type":"Companion","typeLine":"Companion — Healer","role":"Healer","will":2,"worth":2,"strike":1,"guard":2,"health":3,"keywords":[],"text":"When you Sell, heal 1 Health on your Icon.","flavor":"Warm bread. Cold math.","collector":"RM · 08/60"},
+    {"id":"rm-09","fileKey":"Companion_LedgerBoy","qty":2,"name":"Ledger Boy","type":"Companion","typeLine":"Companion — Play Maker","role":"Play Maker","will":2,"worth":2,"strike":1,"guard":1,"health":2,"keywords":[],"text":"When you List or Row, make a Porter token (Companion token, Striker, S 1 G 0 H 1).","flavor":"Ink makes bodies.","collector":"RM · 09/60"},
+    {"id":"rm-10","fileKey":"Companion_MarketCrier","qty":2,"name":"Market Crier","type":"Companion","typeLine":"Companion — Play Maker","role":"Play Maker","will":3,"worth":2,"strike":2,"guard":1,"health":3,"keywords":[],"text":"When this enters, you may Row. If you do, that Row does not count as your Store action and costs 0 Worth.","flavor":"New river. Same shout.","collector":"RM · 10/60"},
+    {"id":"rm-11","fileKey":"Companion_BargeCaptain","qty":2,"name":"Barge Captain","type":"Companion","typeLine":"Companion — Recursor","role":"Recursor","will":3,"worth":3,"strike":2,"guard":2,"health":4,"keywords":[],"text":"Once per turn: when you Buy a Companion, you may put it onto the Field instead of your hand or deck.","flavor":"Paid for. Already working.","collector":"RM · 11/60"},
+    {"id":"rm-12","fileKey":"Companion_CoinNun","qty":1,"name":"Coin Nun","type":"Companion","typeLine":"Companion — Healer","role":"Healer","will":3,"worth":2,"strike":1,"guard":2,"health":4,"keywords":[],"text":"Once per turn: when you gain Worth, heal 1 Health on your Icon.","flavor":"She blesses the count, not the soul.","collector":"RM · 12/60"},
+    {"id":"rm-13","fileKey":"Companion_DebtCollector","qty":1,"name":"Debt Collector","type":"Companion","typeLine":"Companion — Striker","role":"Striker","will":3,"worth":3,"strike":3,"guard":1,"health":3,"keywords":[],"text":"This has +2 Strike if an opponent has 0 Worth.","flavor":"Empty pockets still make a sound.","collector":"RM · 13/60"},
+    {"id":"rm-14","fileKey":"Companion_QuayMaster","qty":1,"name":"Quay Master","type":"Companion","typeLine":"Companion — Recursor","role":"Recursor","will":4,"worth":3,"strike":2,"guard":3,"health":5,"keywords":[],"text":"At the start of your turn, if the Store has 4 or more cards, gain 2 Worth.","flavor":"The dock taxes the dock.","collector":"RM · 14/60"},
+    {"id":"rm-15","fileKey":"Companion_SilentPartner","qty":1,"name":"Silent Partner","type":"Companion","typeLine":"Companion — Play Maker","role":"Play Maker","will":4,"worth":3,"strike":2,"guard":2,"health":4,"keywords":["Closed"],"text":"Closed. You may play this from the Store by paying its Will. It does not use your Store action.","flavor":"The name on the paper is never his.","collector":"RM · 15/60"},
+    {"id":"rm-16","fileKey":"Relic_CopperScales","qty":2,"name":"Copper Scales","type":"Relic","typeLine":"Relic — Tool","role":null,"will":1,"worth":2,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Once per turn: the next Trade you make this turn ignores Worth difference of 2 or less.","flavor":"Close enough is a kind of honest.","collector":"RM · 16/60"},
+    {"id":"rm-17","fileKey":"Relic_InvoicePress","qty":2,"name":"Invoice Press","type":"Relic","typeLine":"Relic — Tool","role":null,"will":2,"worth":2,"strike":null,"guard":null,"health":null,"keywords":[],"text":"When you Sell, gain 1 extra Worth.","flavor":"Two coins. One goodbye.","collector":"RM · 17/60"},
+    {"id":"rm-18","fileKey":"Relic_RowHook","qty":2,"name":"Row Hook","type":"Relic","typeLine":"Relic — Tool","role":null,"will":2,"worth":2,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Row costs 1 Worth instead of 2.","flavor":"The river turns if you pull.","collector":"RM · 18/60"},
+    {"id":"rm-19","fileKey":"Relic_Lockbox","qty":1,"name":"Lockbox","type":"Relic","typeLine":"Relic — Gear","role":null,"will":2,"worth":3,"strike":null,"guard":null,"health":null,"keywords":[],"text":"At the start of your turn, gain 1 Worth.","flavor":"It clicks. That is the whole prayer.","collector":"RM · 19/60"},
+    {"id":"rm-20","fileKey":"Relic_MerchantsBarge","qty":1,"name":"Merchant's Barge","type":"Relic","typeLine":"Relic — Place","role":null,"will":3,"worth":3,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Once per turn: you may Buy a card with Store Worth 2 or less without using your Store action.","flavor":"The hold was already paid for.","collector":"RM · 20/60"},
+    {"id":"rm-21","fileKey":"Relic_BlackLedger","qty":1,"name":"Black Ledger","type":"Relic","typeLine":"Relic — Tool","role":null,"will":3,"worth":3,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Once per turn: look at the Store. You may Trade with a card there from the top of your deck instead of your hand.","flavor":"The books remember what the hand forgets.","collector":"RM · 21/60"},
+    {"id":"rm-22","fileKey":"Relic_FairWeight","qty":1,"name":"Fair Weight","type":"Relic","typeLine":"Relic — Tool","role":null,"will":1,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Your first Buy each turn costs 1 less Worth (min 0).","flavor":"A thumb on the scale, kindly.","collector":"RM · 22/60"},
+    {"id":"rm-23","fileKey":"Bond_PriceTag","qty":2,"name":"Price Tag","type":"Bond","typeLine":"Bond — Companion","role":null,"will":1,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Attach to a Companion you control. You may Sell the host from the Field as your Store action. If you do, make a Porter token.","flavor":"Everything here has a number.","collector":"RM · 23/60"},
+    {"id":"rm-24","fileKey":"Bond_SilentHandshake","qty":1,"name":"Silent Handshake","type":"Bond","typeLine":"Bond — Icon","role":null,"will":2,"worth":2,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Attach to your Icon. The first Buy you make each turn costs 1 less Worth (min 0).","flavor":"No names. Just the nod.","collector":"RM · 24/60"},
+    {"id":"rm-25","fileKey":"Bond_DebtMark","qty":1,"name":"Debt Mark","type":"Bond","typeLine":"Bond — Icon","role":null,"will":2,"worth":2,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Attach to an opponent's Icon. After that player Buys, they lose 1 Worth.","flavor":"Interest is a kind of breathing.","collector":"RM · 25/60"},
+    {"id":"rm-26","fileKey":"Bond_PortersKnot","qty":1,"name":"Porter's Knot","type":"Bond","typeLine":"Bond — Companion","role":null,"will":1,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Attach to a Companion. Once per turn: when you Trade, ready the host.","flavor":"Tied to the work, not the wage.","collector":"RM · 26/60"},
+    {"id":"rm-27","fileKey":"Surge_HardBargain","qty":3,"name":"Hard Bargain","type":"Surge","typeLine":"Surge — Now","role":null,"will":1,"worth":1,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"Buy target Store card. Pay 1 less Worth (min 0). This does not use your Store action.","flavor":"The price was a suggestion.","collector":"RM · 27/60"},
+    {"id":"rm-28","fileKey":"Surge_DumpStock","qty":2,"name":"Dump Stock","type":"Surge","typeLine":"Surge — Now","role":null,"will":1,"worth":1,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"Sell a card from your hand. Gain 2 Worth instead of 1.","flavor":"Better gone than counted.","collector":"RM · 28/60"},
+    {"id":"rm-29","fileKey":"Surge_CornertheRiver","qty":2,"name":"Corner the River","type":"Surge","typeLine":"Surge — Now","role":null,"will":3,"worth":2,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"Row. Then you may Buy one card from the new river at −1 Worth (min 0).","flavor":"New water. Old hands.","collector":"RM · 29/60"},
+    {"id":"rm-30","fileKey":"Surge_OpentheHold","qty":2,"name":"Open the Hold","type":"Surge","typeLine":"Surge — Now","role":null,"will":2,"worth":2,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"Look at the top 4 of the Supply. Put two into the Store and the rest on the bottom in any order.","flavor":"The crate was always yours.","collector":"RM · 30/60"},
+    {"id":"rm-31","fileKey":"Surge_FalseWeight","qty":1,"name":"False Weight","type":"Surge","typeLine":"Surge — Now","role":null,"will":2,"worth":2,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"The next Store action an opponent takes this turn must be Keep.","flavor":"The scale says no.","collector":"RM · 31/60"},
+    {"id":"rm-32","fileKey":"Surge_InvoiceDue","qty":1,"name":"Invoice Due","type":"Surge","typeLine":"Surge — Now","role":null,"will":3,"worth":2,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"Target player loses 3 Worth. You gain that much.","flavor":"Payable on sight.","collector":"RM · 32/60"},
+    {"id":"rm-33","fileKey":"Surge_Buyout","qty":1,"name":"Buyout","type":"Surge","typeLine":"Surge — Now","role":null,"will":4,"worth":3,"strike":null,"guard":null,"health":null,"keywords":["Now"],"text":"Buy any number of Store cards. Pay their Worth total. This uses your Store action.","flavor":"The whole river, in one breath.","collector":"RM · 33/60"},
+    {"id":"rm-34","fileKey":"Willsite_TheQuay","qty":2,"name":"The Quay","type":"Will site","typeLine":"Will — Site","role":null,"will":0,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"This turn, your first Buy costs 1 less Worth (min 0).","flavor":"Boards wet. Prices wetter.","collector":"RM · 34/60"},
+    {"id":"rm-35","fileKey":"Willsite_CountingHouse","qty":2,"name":"Counting House","type":"Will site","typeLine":"Will — Site","role":null,"will":0,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"This turn, when you Sell, draw a card.","flavor":"The room that eats paper.","collector":"RM · 35/60"},
+    {"id":"rm-36","fileKey":"Willsite_BargemensDock","qty":2,"name":"Bargemen's Dock","type":"Will site","typeLine":"Will — Site","role":null,"will":0,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"Make a Porter token. It cannot Press this turn.","flavor":"Hands waiting for a crate.","collector":"RM · 36/60"},
+    {"id":"rm-37","fileKey":"Willsite_NightMarket","qty":1,"name":"Night Market","type":"Will site","typeLine":"Will — Site","role":null,"will":0,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"This turn you may List once without using your Store action.","flavor":"Lamps, not laws.","collector":"RM · 37/60"},
+    {"id":"rm-38","fileKey":"Willsite_WeighStation","qty":1,"name":"Weigh Station","type":"Will site","typeLine":"Will — Site","role":null,"will":0,"worth":1,"strike":null,"guard":null,"health":null,"keywords":[],"text":"This turn, the first time you Trade, gain 1 Worth.","flavor":"The stone does not argue.","collector":"RM · 38/60"}
+  ]
+}

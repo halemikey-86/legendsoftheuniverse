@@ -61,6 +61,7 @@ export const SETS = [
   "Classic Cartoon",
   "Aliens",
   "Goblin King",
+  "The Goblin King",
   "History's Finest",
   "Oval Years",
   "Rise of Pride",
@@ -79,12 +80,15 @@ export const SERIES = [
   "10th Planet",
 ] as const;
 
-export function mergeSuggestions(known: readonly string[], values: Iterable<string>): string[] {
+export function mergeSuggestions(
+  ...groups: Array<readonly string[] | Iterable<string>>
+): string[] {
   const out = new Set<string>();
-  for (const item of known) out.add(item);
-  for (const item of values) {
-    const trimmed = item.trim();
-    if (trimmed) out.add(trimmed);
+  for (const group of groups) {
+    for (const item of group) {
+      const trimmed = String(item).trim();
+      if (trimmed) out.add(trimmed);
+    }
   }
   return [...out].sort((a, b) => a.localeCompare(b));
 }

@@ -32,7 +32,18 @@ export function CardImageUpload({
       const { card: updated } = await uploadCardImage(card.id, slot, file);
       onUpdated(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      const message = err instanceof Error ? err.message : "Upload failed";
+      if (message === "Unauthorized") {
+        setError(
+          "Unauthorized — click Admin access in the header and paste the shared admin token from your team lead.",
+        );
+      } else if (message === "Failed to fetch" || message.includes("NetworkError")) {
+        setError(
+          "Could not reach the catalog API — check your connection. If this is a preview (.pages.dev) link, wait a minute and retry after the API update.",
+        );
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

@@ -41,12 +41,14 @@ node catalog/scripts/cloudflare-dns.mjs `
 3. **Root directory:** `catalog/web`
 4. **Build command:** `npm run build`
 5. **Build output:** `dist`
-6. **Environment variables** (Production):
+6. **Environment variables** — set for **Production and Preview** (branch `.pages.dev` links use Preview):
 
    | Key | Value |
    | --- | --- |
-   | `VITE_API_BASE` | `https://api.willbound.haleappsllc.com` |
-   | `VITE_ADMIN_TOKEN` | Same as API `ADMIN_TOKEN` |
+   | `VITE_API_BASE` | `https://willbound-catalog-api.fly.dev` (required — never use `localhost` for Production/Preview) |
+
+   The UI also falls back to `willbound-catalog-api.fly.dev` when hosted on `*.pages.dev` or `willbound.haleappsllc.com`, but set this env var anyway so builds are explicit.
+   | `VITE_ADMIN_TOKEN` | Same as API `ADMIN_TOKEN` (optional — teammates can paste via **Admin access**) |
 
 7. **Custom domains** → Add `willbound.haleappsllc.com`
 
@@ -69,11 +71,13 @@ SPA routing uses `public/_redirects`.
 The API is a Node server with Postgres and file uploads. `catalog/fly.toml` and `catalog/Dockerfile` are ready.
 
 ```powershell
-# One-time login
-flyctl auth login
-
-# Deploy (reads catalog/.env, creates app + volume + secrets)
+# From repo root (legendsoftheuniverse/)
+& "$env:USERPROFILE\.fly\bin\flyctl.exe" auth login
 .\catalog\scripts\setup-fly.ps1
+
+# Or from catalog/
+& "$env:USERPROFILE\.fly\bin\flyctl.exe" auth login
+.\scripts\setup-fly.ps1
 ```
 
 Or manually:

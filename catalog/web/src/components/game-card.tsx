@@ -18,13 +18,22 @@ const TYPE_TINT: Record<CardType, string> = {
   Will: "text-will",
 };
 
-function CardArt({ card }: { card: Card }) {
+function CardArt({
+  card,
+  fit = "contain",
+}: {
+  card: Card;
+  fit?: "contain" | "cover";
+}) {
   if (card.frontImageUrl) {
     return (
       <img
         src={card.frontImageUrl}
         alt={card.name || "Card art"}
-        className="size-full object-cover"
+        className={cn(
+          "size-full",
+          fit === "contain" ? "object-contain object-center" : "object-cover",
+        )}
       />
     );
   }
@@ -138,6 +147,64 @@ export function GameCard({
         ? "art-gold"
         : "bg-background";
 
+  if (size === "grid") {
+    return (
+      <article
+        className={cn(
+          "flex flex-col overflow-hidden rounded-lg border border-border bg-card text-left shadow-[var(--shadow-border)]",
+          frameClass[card.frame],
+          className,
+        )}
+      >
+        <div
+          className={cn(
+            "relative aspect-[5/7] w-full overflow-hidden",
+            artClass,
+          )}
+        >
+          <CardArt card={card} fit="contain" />
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-1.5">
+            <span className="flex size-6 items-center justify-center rounded-full border border-border/80 bg-card/90 font-display text-xs font-medium tabular-nums backdrop-blur-sm">
+              {card.willCost}
+            </span>
+            <span
+              className={cn(
+                "rounded-sm bg-card/90 px-1.5 py-0.5 text-[10px] font-medium tracking-widest uppercase backdrop-blur-sm",
+                TYPE_TINT[card.type],
+              )}
+            >
+              {TYPE_LABEL[card.type]}
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-1 border-t border-border px-2 py-2">
+          <h3 className="line-clamp-2 font-display text-sm leading-tight text-foreground">
+            {card.name || "Untitled"}
+          </h3>
+          <p className="line-clamp-1 text-[11px] tracking-wide text-muted-foreground uppercase">
+            {typeLine}
+            {card.role ? ` · ${card.role}` : ""}
+          </p>
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <span className="truncate text-[10px] tracking-wide text-muted-foreground uppercase">
+              {card.number || card.id || "—"}
+            </span>
+            {hasCombat(card.type) ? (
+              <span className="shrink-0 rounded-sm border border-border bg-secondary px-1.5 py-0.5 font-display text-[10px] tabular-nums">
+                {card.strike}/{card.guard}/{card.health}
+              </span>
+            ) : card.storeWorth ? (
+              <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                Worth {card.storeWorth}
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article
       className={cn(
@@ -162,7 +229,7 @@ export function GameCard({
       </div>
 
       <div className={cn("relative min-h-0 flex-1 overflow-hidden rounded-md", artClass)}>
-        <CardArt card={card} />
+        <CardArt card={card} fit="contain" />
       </div>
 
       <div className="mt-1.5 px-1.5">

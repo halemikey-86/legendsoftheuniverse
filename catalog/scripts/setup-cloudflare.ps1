@@ -24,7 +24,8 @@ function New-AdminToken {
 }
 
 $webDomain = "willbound.haleappsllc.com"
-$apiDomain = "api.willbound.haleappsllc.com"
+$apiDomain = "willbound-catalog-api.fly.dev"
+$apiDomainCustom = "api.willbound.haleappsllc.com"
 $pagesProject = "willbound-catalog"
 $apex = "haleappsllc.com"
 
@@ -48,6 +49,7 @@ Push-Location $Web
 try {
   npm install | Out-Null
   $env:VITE_API_BASE = "https://$apiDomain"
+  # When api.willbound DNS is live, switch to: https://$apiDomainCustom
   $env:VITE_ADMIN_TOKEN = $adminToken
   npm run build
 

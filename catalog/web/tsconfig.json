@@ -26,6 +26,7 @@
     "src/lib/pg-pool.ts",
     "src/lib/db.example.ts",
     "src/lib/image-storage.ts",
-    "src/lib/multipart.ts"
+    "src/lib/multipart.ts",
+    "src/lib/taxonomy-db.ts"
   ]
 }

@@ -113,6 +113,9 @@ function SuggestionInput({
           <option key={item} value={item} />
         ))}
       </datalist>
+      <p className="text-xs text-muted-foreground">
+        Pick a suggestion or type a new {label.toLowerCase()}.
+      </p>
     </div>
   );
 }

@@ -1,10 +1,23 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? "";
-const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN ?? "";
+import { getAdminToken } from "@/lib/admin-token";
+import { API_BASE } from "@/lib/api-base";
 
 function authHeaders(): HeadersInit {
   const headers: Record<string, string> = {};
-  if (ADMIN_TOKEN) headers.Authorization = `Bearer ${ADMIN_TOKEN}`;
+  const token = getAdminToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
   return headers;
+}
+
+export async function verifyAdminToken(): Promise<boolean> {
+  if (!getAdminToken()) return false;
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/check`, { headers: authHeaders() });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { ok?: boolean };
+    return body.ok === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function uploadCardImage(

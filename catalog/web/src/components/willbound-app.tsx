@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Library, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Download, Library, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   CARD_TYPES,
@@ -28,7 +28,6 @@ import {
   type SortKey,
 } from "@/lib/cards";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,8 +55,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CardDetailPanel } from "@/components/card-detail-panel";
 import { CardForm } from "@/components/card-form";
-import { GameCard, frameBadgeVariant, typeBadgeVariant } from "@/components/game-card";
+import { GameCard } from "@/components/game-card";
+import { AdminTokenButton } from "@/components/admin-token-dialog";
+import { verifyAdminToken } from "@/lib/api-client";
+import { hasAdminToken } from "@/lib/admin-token";
+import { TaxonomyManager, TaxonomyManagerButton } from "@/components/taxonomy-manager";
+import { fetchTaxonomy } from "@/lib/taxonomy-api";
 
 const SORT_LABEL: Record<SortKey, string> = {
   name: "Name",
@@ -118,6 +123,23 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [formValue, setFormValue] = useState<Card>(blankCard);
   const [pendingDelete, setPendingDelete] = useState<Card | null>(null);
+  const [taxonomyOpen, setTaxonomyOpen] = useState(false);
+  const [adminOk, setAdminOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!hasAdminToken()) {
+        if (!cancelled) setAdminOk(null);
+        return;
+      }
+      const ok = await verifyAdminToken();
+      if (!cancelled) setAdminOk(ok);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isDefaultSearch =
     filters.q === "" &&
@@ -151,13 +173,29 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
   });
   const libraryCards = libraryQuery.data ?? initialCards;
 
+  const taxonomyQuery = useQuery({
+    queryKey: ["taxonomy"],
+    queryFn: fetchTaxonomy,
+    staleTime: 60_000,
+  });
+
   const setOptions = useMemo(
-    () => mergeSuggestions(SETS, libraryCards.map((c) => c.set)),
-    [libraryCards],
+    () =>
+      mergeSuggestions(
+        SETS,
+        taxonomyQuery.data?.sets ?? [],
+        libraryCards.map((c) => c.set),
+      ),
+    [libraryCards, taxonomyQuery.data?.sets],
   );
   const seriesOptions = useMemo(
-    () => mergeSuggestions(SERIES, libraryCards.map((c) => c.series)),
-    [libraryCards],
+    () =>
+      mergeSuggestions(
+        SERIES,
+        taxonomyQuery.data?.series ?? [],
+        libraryCards.map((c) => c.series),
+      ),
+    [libraryCards, taxonomyQuery.data?.series],
   );
 
   useEffect(() => {
@@ -263,6 +301,18 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              <AdminTokenButton
+                onChange={() => {
+                  void (async () => {
+                    if (!hasAdminToken()) {
+                      setAdminOk(false);
+                      return;
+                    }
+                    setAdminOk(await verifyAdminToken());
+                  })();
+                }}
+              />
+              <TaxonomyManagerButton onClick={() => setTaxonomyOpen(true)} />
               <Button
                 variant="outline"
                 className="hidden sm:inline-flex"
@@ -311,18 +361,18 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
                 options={CARD_TYPES.map((type) => ({ value: type, label: TYPE_LABEL[type] }))}
                 onChange={(value) => setFilter("type", value)}
               />
-              <FilterSelect
+              <FilterCombo
                 label="Set"
                 value={draft.set}
-                allLabel="All sets"
-                options={setOptions.map((set) => ({ value: set, label: set }))}
+                placeholder="All sets"
+                options={setOptions}
                 onChange={(value) => setFilter("set", value)}
               />
-              <FilterSelect
+              <FilterCombo
                 label="Series"
                 value={draft.series}
-                allLabel="All series"
-                options={seriesOptions.map((series) => ({ value: series, label: series }))}
+                placeholder="All series"
+                options={seriesOptions}
                 onChange={(value) => setFilter("series", value)}
               />
               <FilterSelect
@@ -392,6 +442,18 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
         </div>
       </header>
 
+      {!hasAdminToken() ? (
+        <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center text-sm text-amber-950 dark:text-amber-100">
+          Uploads and edits need the admin token — click{" "}
+          <strong>Admin access</strong> in the header, paste the shared token, and click Save.
+        </div>
+      ) : adminOk === false ? (
+        <div className="border-b border-destructive/40 bg-destructive/10 px-4 py-3 text-center text-sm">
+          Saved admin token was rejected — open <strong>Admin access</strong> and paste the current
+          token from your team lead.
+        </div>
+      ) : null}
+
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-6 sm:px-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground tabular-nums">{resultLabel}</p>
@@ -458,61 +520,17 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
           if (!open) setSelected(null);
         }}
       >
-        <DialogContent className="max-w-3xl p-4 pt-14 sm:p-6 sm:pt-10">
+        <DialogContent className="max-w-5xl overflow-hidden p-0 pt-12 sm:pt-10">
           {selected ? (
-            <div className="grid gap-5 sm:grid-cols-[minmax(0,14rem)_1fr] sm:items-start">
-              <GameCard card={selected} size="hero" className="mx-auto w-52 sm:w-full" />
-              <div className="flex min-w-0 flex-col gap-4">
-                <DialogHeader>
-                  <DialogTitle>{selected.name}</DialogTitle>
-                  <DialogDescription className="flex flex-wrap items-center gap-2">
-                    <Badge variant={typeBadgeVariant(selected.type)}>
-                      {TYPE_LABEL[selected.type]}
-                    </Badge>
-                    <Badge variant={frameBadgeVariant(selected.frame)}>{selected.frame}</Badge>
-                    <span className="font-mono text-xs">{selected.id}</span>
-                  </DialogDescription>
-                </DialogHeader>
-                <p className="text-sm text-muted-foreground">
-                  {selected.set}
-                  {selected.number ? ` · ${selected.number}` : ""}
-                  {selected.series ? ` · ${selected.series}` : ""}
-                  {selected.role ? ` · ${selected.role}` : ""}
-                </p>
-                <p className="text-sm tabular-nums text-foreground">
-                  Will {selected.willCost} · Worth {selected.storeWorth}
-                  {selected.honorCost ? ` · Honor ${selected.honorCost}` : ""}
-                  {hasStats(selected)
-                    ? ` · ${selected.strike}/${selected.guard}/${selected.health}`
-                    : ""}
-                </p>
-                {selected.notes ? (
-                  <p className="text-sm text-muted-foreground">{selected.notes}</p>
-                ) : null}
-                <pre className="max-h-40 overflow-auto rounded-md border border-border bg-background p-3 font-mono text-xs leading-relaxed text-muted-foreground">
-                  {JSON.stringify(toEngineJson(selected), null, 2)}
-                </pre>
-                <div className="mt-auto flex flex-wrap gap-2 pt-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      void copyText(JSON.stringify(toEngineJson(selected), null, 2));
-                      toast.success("Engine JSON copied");
-                    }}
-                  >
-                    Copy JSON
-                  </Button>
-                  <Button variant="outline" onClick={() => openEdit(selected)}>
-                    <Pencil />
-                    Edit
-                  </Button>
-                  <Button variant="destructive" onClick={() => setPendingDelete(selected)}>
-                    <Trash2 />
-                    Remove
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <CardDetailPanel
+              card={selected}
+              onEdit={() => openEdit(selected)}
+              onRemove={() => setPendingDelete(selected)}
+              onCopyJson={() => {
+                void copyText(JSON.stringify(toEngineJson(selected), null, 2));
+                toast.success("Engine JSON copied");
+              }}
+            />
           ) : null}
         </DialogContent>
       </Dialog>
@@ -577,12 +595,53 @@ export function WillboundApp({ initialCards }: { initialCards: Card[] }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TaxonomyManager open={taxonomyOpen} onOpenChange={setTaxonomyOpen} />
     </div>
   );
 }
 
-function hasStats(card: Card) {
-  return card.type === "Icon" || card.type === "Companion";
+function FilterCombo({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  options: string[];
+  onChange: (value: string) => void;
+}) {
+  const listId = `${label.replace(/\s+/g, "-").toLowerCase()}-filter`;
+  return (
+    <div className="relative shrink-0">
+      <Input
+        list={listId}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-10 w-auto min-w-36 bg-card pr-8"
+        aria-label={label}
+      />
+      <datalist id={listId}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+      {value ? (
+        <button
+          type="button"
+          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+          onClick={() => onChange("")}
+          aria-label={`Clear ${label.toLowerCase()} filter`}
+        >
+          <X className="size-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function FilterSelect({
