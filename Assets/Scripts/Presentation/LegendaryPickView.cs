@@ -14,21 +14,22 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] CardView cardPrefab;
 
         [Header("Layout")]
-        [SerializeField] Vector3 pickCenter = new(0f, 0.05f, -2f);
-        [SerializeField] float pickSpacing = 6f;
-        [SerializeField] float pickCardScale = PlaymatZones.IconScale;
-        [SerializeField] float selectedScale = PlaymatZones.IconScale;
+        [SerializeField] Vector3 pickCenter = new(0f, PlaymatZones.CardY, 0.5f);
+        [SerializeField] float pickSpacing = 5f;
+        [SerializeField] float pickCardScale = PlaymatZones.CardScale;
+        [SerializeField] float selectedScale = PlaymatZones.CardScale;
         [SerializeField] float pickAnimDuration = 0.35f;
         [SerializeField] int pickChoiceCount = GameSetupConstants.LegendaryIconChoices;
 
         [Header("Inspect")]
-        [SerializeField] Vector3 inspectPosition = new(-3.5f, 0.1f, -0.5f);
+        [SerializeField] Vector3 inspectPosition = new(-2f, 0.1f, 1.5f);
         [SerializeField] float inspectScale = PlaymatZones.CardScale;
         [SerializeField] float inspectPeerScaleMultiplier = 0.72f;
         [SerializeField] float inspectPeerZOffset = 0.75f;
         [SerializeField] float inspectAnimDuration = 0.25f;
 
         readonly List<CardView> pickCards = new();
+        readonly List<CardView> unpickedCards = new();
         readonly CardChoiceModal choiceModal = new();
 
         Texture2D selectedIcon;
@@ -214,18 +215,31 @@ namespace LegendsOfTheUniverse.Presentation
                 yield return null;
         }
 
+        public IReadOnlyList<CardView> TakeUnpickedCards()
+        {
+            var result = new List<CardView>(unpickedCards);
+            unpickedCards.Clear();
+            return result;
+        }
+
         IEnumerator ConfirmPickRoutine(CardView chosen)
         {
             chosen.transform.SetAsLastSibling();
             yield return AnimateCardTo(chosen, chosen.transform.position, selectedScale, pickAnimDuration);
 
+            unpickedCards.Clear();
             for (var i = pickCards.Count - 1; i >= 0; i--)
             {
                 var card = pickCards[i];
                 if (card == null || card == chosen)
                     continue;
 
-                Destroy(card.gameObject);
+                var handler = card.GetComponent<LegendaryPickCardHandler>();
+                if (handler != null)
+                    Destroy(handler);
+
+                card.SetClickable(false);
+                unpickedCards.Add(card);
             }
 
             pickCards.Clear();
@@ -284,6 +298,14 @@ namespace LegendsOfTheUniverse.Presentation
 
             choiceModal.Hide();
             inspectingCard = null;
+
+            for (var i = unpickedCards.Count - 1; i >= 0; i--)
+            {
+                if (unpickedCards[i] != null)
+                    Destroy(unpickedCards[i].gameObject);
+            }
+
+            unpickedCards.Clear();
 
             for (var i = pickCards.Count - 1; i >= 0; i--)
             {

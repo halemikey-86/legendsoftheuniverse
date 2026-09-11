@@ -1,4 +1,8 @@
 using System.Collections;
+using System.Collections.Generic;
+using LegendsOfTheUniverse.Presentation.EngineBridge;
+using LegendsOfTheUniverse.Rules;
+using Willbound.Table;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -23,9 +27,14 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] StoreActionController storeActions;
         [SerializeField] LegendaryPickView legendaryPickView;
         [SerializeField] CardBackPickView cardBackPickView;
+        [SerializeField] OpeningHandRedrawView openingHandRedrawView;
         [SerializeField] IconSlotView iconSlotView;
         [SerializeField] Transform deckPoint;
         [SerializeField] PlaymatZonesView playmatZones;
+        [SerializeField] SupplyDeckView supplyDeckView;
+        [SerializeField] TurnFlowController turnFlow;
+        [SerializeField] TableMatchBridge matchBridge;
+        [SerializeField] TableRoot tableRoot;
 
         Text pickPromptText;
         Button keepButton;
@@ -33,18 +42,41 @@ namespace LegendsOfTheUniverse.Presentation
         Button buyButton;
         Button sellButton;
         Button tradeButton;
+        Button nextPhaseButton;
+        Button endTurnButton;
         Image listViewButtonIcon;
         GameObject handUiRoot;
+        bool matchStarted;
 
         Sprite keepIcon;
         Sprite buyIcon;
         Sprite sellIcon;
         Sprite tradeIcon;
-        Sprite listIcon;
-        Sprite rowIcon;
+        Sprite hideDeckIcon;
+        Sprite nextPhaseIcon;
+        Sprite endTurnIcon;
 
         const float IconButtonSize = 72f;
+        const float StoreActionButtonSize = 48f;
+        const float KeepButtonScale = 0.37f;
+        const float KeepButtonAnchorY = 0.12f;
         static readonly Color IconNormalTint = new(0.92f, 0.88f, 0.78f, 1f);
+
+        static readonly Vector3 RiverToggleButtonPosition = new(-60f, 17f, 0f);
+        static readonly Vector3 BuyButtonPosition = new(21f, 25f, 0f);
+        static readonly Vector3 SellButtonPosition = new(-23.2f, 25f, 0f);
+        static readonly Vector3 TradeButtonPosition = new(60f, 17f, 0f);
+        const float RiverToggleButtonScale = 0.65f;
+        const float BuyButtonScale = 0.93f;
+        const float SellButtonScale = 0.93f;
+        const float TradeButtonScale = 0.65f;
+
+        const float PhaseButtonSize = 72f;
+        const float PhaseButtonBottomOffset = 40f;
+        const float EndTurnButtonInset = 48f;
+        const float NextPhaseButtonInset = 132f;
+        static readonly Color PhaseButtonEnabledTint = Color.white;
+        static readonly Color PhaseButtonDisabledTint = new(1f, 1f, 1f, 0.35f);
 
         void Reset()
         {
@@ -68,17 +100,41 @@ namespace LegendsOfTheUniverse.Presentation
                 legendaryPickView = GetComponent<LegendaryPickView>();
             if (cardBackPickView == null)
                 cardBackPickView = GetComponent<CardBackPickView>();
-            if (cardBackPickView == null)
-                cardBackPickView = gameObject.AddComponent<CardBackPickView>();
+            if (openingHandRedrawView == null)
+                openingHandRedrawView = GetComponent<OpeningHandRedrawView>();
+            if (openingHandRedrawView == null)
+                openingHandRedrawView = gameObject.AddComponent<OpeningHandRedrawView>();
             if (iconSlotView == null)
                 iconSlotView = GetComponent<IconSlotView>();
             if (playmatZones == null)
                 playmatZones = GetComponent<PlaymatZonesView>();
+            if (playmatZones == null)
+                playmatZones = gameObject.AddComponent<PlaymatZonesView>();
+            if (supplyDeckView == null)
+                supplyDeckView = GetComponentInChildren<SupplyDeckView>();
+            if (turnFlow == null)
+                turnFlow = GetComponent<TurnFlowController>();
+            if (turnFlow == null)
+                turnFlow = gameObject.AddComponent<TurnFlowController>();
+
+            if (matchBridge == null)
+                matchBridge = GetComponent<TableMatchBridge>();
+            if (tableRoot == null)
+                tableRoot = GetComponent<TableRoot>();
+            if (tableRoot == null)
+                tableRoot = gameObject.AddComponent<TableRoot>();
+            if (matchBridge == null)
+                matchBridge = gameObject.AddComponent<TableMatchBridge>();
 
             if (storeActions == null)
                 storeActions = gameObject.AddComponent<StoreActionController>();
 
-            storeActions.Init(handView, storeView, deckPoint, playmatZones != null ? playmatZones.OutOfPlay : null);
+            turnFlow.Configure(handView, playmatZones, storeView, SetPickPrompt);
+            turnFlow.BindEngine(matchBridge);
+            turnFlow.PhaseStateChanged += OnTurnPhaseChanged;
+            matchBridge.EngineError += OnEngineError;
+
+            storeActions.Init(handView, storeView, matchBridge);
             handView?.BindStoreActions(storeActions);
             handView?.BindStoreView(storeView);
             storeView?.BindStoreActions(storeActions);
@@ -87,18 +143,52 @@ namespace LegendsOfTheUniverse.Presentation
             CardDeck.ClearSession();
             handView?.ResetSession();
             storeView?.ClearStoreRuntime();
+            storeView?.EnsureRowEmpty();
+            supplyDeckView?.SetStackVisible(false);
             iconSlotView?.ClearIcon();
             EnsureEventSystem();
         }
 
         void Start()
         {
+            StartCoroutine(BootTableRoutine());
+        }
+
+        IEnumerator BootTableRoutine()
+        {
+            while (!TablePresentation.IsReady || GetTableCamera() == null)
+                yield return null;
+
+            var cardCount = CardCatalog.LoadAllCardFronts().Count;
+            var backCount = CardCatalog.LoadCardBacks().Count;
+            if (cardCount == 0 || backCount == 0)
+            {
+                Debug.LogError(
+                    $"HandFlowController: Missing card assets (fronts={cardCount}, backs={backCount}). " +
+                    "Check Assets/Cards is imported.");
+            }
+
+            if (handView != null && handView.CardPrefab == null)
+                Debug.LogError("HandFlowController: HandView.cardPrefab is not assigned on Table.");
+
             EnsureHandUi();
-            StartCoroutine(BeginOpeningHand());
+            yield return BeginOpeningHand();
+        }
+
+        Camera GetTableCamera()
+        {
+            var tableView = GetComponent<TableView>();
+            return tableView != null ? tableView.TableCamera : Camera.main;
         }
 
         void OnDestroy()
         {
+            if (turnFlow != null)
+                turnFlow.PhaseStateChanged -= OnTurnPhaseChanged;
+
+            if (matchBridge != null)
+                matchBridge.EngineError -= OnEngineError;
+
             if (handUiRoot != null)
                 Destroy(handUiRoot);
         }
@@ -108,11 +198,17 @@ namespace LegendsOfTheUniverse.Presentation
             legendaryPickView?.TickModal();
             cardBackPickView?.Tick();
 
+            if (tableRoot != null && tableRoot.IsMatchTableEnabled)
+                return;
+
             if (!WasPrimaryClickThisFrame() || IsPointerOverUi())
                 return;
 
-            if (TryRaycastCard(out _))
-                return;
+            if (TryRaycastCard(out var clickedCard))
+            {
+                if (TryHandleTableCardClick(clickedCard))
+                    return;
+            }
 
             if (cardBackPickView != null && cardBackPickView.IsInspecting)
             {
@@ -191,6 +287,38 @@ namespace LegendsOfTheUniverse.Presentation
             return card != null;
         }
 
+        bool TryHandleTableCardClick(CardView card)
+        {
+            if (card == null)
+                return false;
+
+            if (cardBackPickView != null && cardBackPickView.IsPickActive)
+            {
+                cardBackPickView.HandlePickCardClicked(card);
+                return true;
+            }
+
+            if (legendaryPickView != null && legendaryPickView.IsPickActive)
+            {
+                legendaryPickView.HandlePickCardClicked(card);
+                return true;
+            }
+
+            if (handView != null && handView.ContainsHandCard(card))
+            {
+                handView.HandleTableClick(card);
+                return true;
+            }
+
+            if (storeView != null && storeView.CanInteractCards)
+            {
+                storeView.HandleStoreCardClicked(card);
+                return true;
+            }
+
+            return false;
+        }
+
         IEnumerator BeginOpeningHand()
         {
             if (handView == null)
@@ -213,34 +341,22 @@ namespace LegendsOfTheUniverse.Presentation
             var deckPosition = GetDeckPosition();
             CardDeck.PrepareSetupPool();
 
-            if (storeView != null)
-                yield return storeView.DealStoreRoutine(deckPosition);
-
             yield return handView.DealOpeningHandRoutine(deckPosition);
 
             CardDeck.CommitRemainderToSupply();
 
-            SetPickPrompt("Review your cards, then choose your Legendary Icon", true);
+            supplyDeckView?.SetStackVisible(true);
+            supplyDeckView?.Refresh();
 
-            if (legendaryPickView != null)
-                yield return legendaryPickView.RunPickRoutine();
+            SetPickPrompt("Review your hand — \u267B redraw once per card, then Keep", true);
 
-            SetPickPrompt(null, false);
-
-            if (legendaryPickView != null && legendaryPickView.HasSelected)
-            {
-                var icon = legendaryPickView.SelectedIcon;
-                var fromPosition = legendaryPickView.GetSelectedCardPosition();
-                CardDeck.SetSelectedLegendary(icon);
-                legendaryPickView.ClearPickCards();
-
-                if (iconSlotView != null)
-                    yield return iconSlotView.PlaceIconRoutine(icon, fromPosition);
-            }
+            openingHandRedrawView?.Begin(handView, handUiRoot.transform, GetTableCamera(), GetDeckPosition);
 
             if (keepButton != null)
                 keepButton.gameObject.SetActive(true);
         }
+
+        void OnEngineError(string message) => SetPickPrompt(message, true);
 
         void SetPickPrompt(string message, bool visible)
         {
@@ -266,14 +382,104 @@ namespace LegendsOfTheUniverse.Presentation
             if (keepButton != null)
                 keepButton.gameObject.SetActive(false);
 
+            openingHandRedrawView?.End();
+
             yield return handView.RunKeepHandRoutine();
+            handView.TuckForOverlayPick();
+
+            SetPickPrompt("Choose your Legendary Icon", true);
+
+            if (legendaryPickView != null)
+                yield return legendaryPickView.RunPickRoutine();
+
+            SetPickPrompt(null, false);
+            yield return handView.RestoreHandUnlessInspecting();
+
+            if (legendaryPickView != null && legendaryPickView.HasSelected)
+            {
+                var icon = legendaryPickView.SelectedIcon;
+                var fromPosition = legendaryPickView.GetSelectedCardPosition();
+                var unpicked = legendaryPickView.TakeUnpickedCards();
+                CardDeck.SetSelectedLegendary(icon);
+                legendaryPickView.ClearPickCards();
+
+                if (iconSlotView != null)
+                    yield return iconSlotView.PlaceIconRoutine(icon, fromPosition);
+
+                if (unpicked.Count > 0)
+                    yield return ReturnUnpickedIconsToSupplyRoutine(unpicked, GetSupplyPosition());
+
+                SetPickPrompt("Round begins — market opens", true);
+
+                supplyDeckView?.SetStackVisible(true);
+                supplyDeckView?.Refresh();
+
+                if (storeView != null)
+                    yield return storeView.BeginRoundRoutine(GetSupplyPosition());
+
+                SetPickPrompt(null, false);
+            }
+
+            matchStarted = true;
+            turnFlow?.BeginMatchAfterSetup();
+            tableRoot?.EnableMatchTable();
             SetStoreButtonsVisible(true);
+            UpdateTurnButtons();
         }
 
-        void OnListViewClicked()
+        void OnNextPhaseClicked()
         {
-            storeView?.ToggleListView();
-            UpdateListViewButtonIcon();
+            turnFlow?.OnNextPhaseClicked();
+            UpdateTurnButtons();
+        }
+
+        void OnEndTurnClicked()
+        {
+            turnFlow?.OnEndTurnClicked();
+            UpdateTurnButtons();
+        }
+
+        void OnTurnPhaseChanged(TurnStep step, bool discardPending)
+        {
+            SetStoreButtonsVisible(step == TurnStep.Main && !discardPending);
+            UpdateTurnButtons();
+        }
+
+        void UpdateTurnButtons()
+        {
+            if (turnFlow == null)
+                return;
+
+            if (!matchStarted)
+            {
+                SetPhaseButtonState(nextPhaseButton, true, false);
+                SetPhaseButtonState(endTurnButton, true, false);
+                return;
+            }
+
+            var discardPending = turnFlow.IsDiscardPending;
+            SetPhaseButtonState(nextPhaseButton, !discardPending, turnFlow.ShouldShowNextPhaseButton);
+            SetPhaseButtonState(endTurnButton, !discardPending, turnFlow.ShouldShowEndTurnButton);
+        }
+
+        static void SetPhaseButtonState(Button button, bool visible, bool interactable)
+        {
+            if (button == null)
+                return;
+
+            button.gameObject.SetActive(visible);
+            button.interactable = interactable;
+
+            var image = button.GetComponent<Image>();
+            if (image != null)
+                image.color = interactable ? PhaseButtonEnabledTint : PhaseButtonDisabledTint;
+        }
+
+        void OnRiverToggleClicked()
+        {
+            var hideButton = listViewButton != null ? listViewButton.GetComponent<RectTransform>() : null;
+            storeView?.ToggleRiverCollapse(GetSupplyPosition(), hideButton);
+            UpdateRiverToggleButtonIcon();
         }
 
         void OnBuyClicked() => SetStoreActionMode(StoreActionMode.Buy);
@@ -288,12 +494,12 @@ namespace LegendsOfTheUniverse.Presentation
             UpdateActionButtonHighlights();
         }
 
-        void UpdateListViewButtonIcon()
+        void UpdateRiverToggleButtonIcon()
         {
-            if (listViewButtonIcon == null || storeView == null || listIcon == null || rowIcon == null)
+            if (listViewButtonIcon == null || hideDeckIcon == null)
                 return;
 
-            listViewButtonIcon.sprite = storeView.IsListView ? rowIcon : listIcon;
+            listViewButtonIcon.sprite = hideDeckIcon;
         }
 
         void SetStoreButtonsVisible(bool visible)
@@ -301,7 +507,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (listViewButton != null)
             {
                 listViewButton.gameObject.SetActive(visible);
-                UpdateListViewButtonIcon();
+                UpdateRiverToggleButtonIcon();
             }
 
             if (buyButton != null)
@@ -338,19 +544,62 @@ namespace LegendsOfTheUniverse.Presentation
         void LoadButtonIcons()
         {
             keepIcon = Resources.Load<Sprite>("UI/Icons/Keep");
-            buyIcon = Resources.Load<Sprite>("UI/Icons/Buy");
-            sellIcon = Resources.Load<Sprite>("UI/Icons/Sell");
-            tradeIcon = Resources.Load<Sprite>("UI/Icons/Trade");
-            listIcon = Resources.Load<Sprite>("UI/Icons/List");
-            rowIcon = Resources.Load<Sprite>("UI/Icons/Row");
+            buyIcon = PlaymatUiSprites.Buy;
+            sellIcon = PlaymatUiSprites.Sell;
+            tradeIcon = PlaymatUiSprites.Trade;
+            hideDeckIcon = PlaymatUiSprites.HideDeck;
+            nextPhaseIcon = PlaymatUiSprites.LabelNextPhase;
+            endTurnIcon = PlaymatUiSprites.LabelEndTurn;
 
-            if (keepIcon == null)
-                Debug.LogWarning("HandFlowController: UI icons not found at Resources/UI/Icons/");
+            if (buyIcon == null || sellIcon == null || tradeIcon == null || hideDeckIcon == null)
+                Debug.LogWarning("HandFlowController: UI action symbols not found at Resources/UI/Icons/");
+            if (nextPhaseIcon == null || endTurnIcon == null)
+                Debug.LogWarning("HandFlowController: Phase labels not found at Resources/UI/Labels/");
         }
 
         Vector3 GetDeckPosition()
         {
-            return deckPoint != null ? deckPoint.position : PlaymatZones.Supply;
+            return deckPoint != null ? deckPoint.position : PlaymatZones.Deck;
+        }
+
+        Vector3 GetSupplyPosition()
+        {
+            return supplyDeckView != null
+                ? supplyDeckView.transform.position
+                : PlaymatZones.Supply;
+        }
+
+        IEnumerator ReturnUnpickedIconsToSupplyRoutine(IReadOnlyList<CardView> unpicked, Vector3 supplyPosition)
+        {
+            var fronts = new List<Texture2D>(unpicked.Count);
+            const float returnDuration = 0.35f;
+
+            for (var i = 0; i < unpicked.Count; i++)
+            {
+                var card = unpicked[i];
+                if (card == null)
+                    continue;
+
+                if (card.FrontTexture != null)
+                    fronts.Add(card.FrontTexture);
+
+                CardHoverAudio.PlayCardMove();
+
+                var animator = card.GetComponent<CardAnimator>();
+                if (animator != null)
+                    yield return animator.AnimateToRoutine(
+                        supplyPosition,
+                        card.CardScale * 0.85f,
+                        returnDuration,
+                        CardView.TableRotation);
+                else
+                    card.transform.position = supplyPosition;
+
+                Destroy(card.gameObject);
+            }
+
+            CardDeck.ReturnManyToSupplyAndShuffle(fronts);
+            supplyDeckView?.Refresh();
         }
 
         void EnsureEventSystem()
@@ -384,25 +633,32 @@ namespace LegendsOfTheUniverse.Presentation
                 handUiRoot = new GameObject("HandUI");
                 var canvas = handUiRoot.AddComponent<Canvas>();
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                handUiRoot.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                canvas.sortingOrder = 300;
+                var scaler = handUiRoot.AddComponent<CanvasScaler>();
+                scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+                scaler.referenceResolution = new Vector2(1920, 1080);
                 handUiRoot.AddComponent<GraphicRaycaster>();
             }
 
             LoadButtonIcons();
             EnsurePickPrompt();
-            legendaryPickView?.InitPickUi(handUiRoot.transform, Camera.main);
+            var tableCamera = GetTableCamera();
+            legendaryPickView?.InitPickUi(handUiRoot.transform, tableCamera);
             cardBackPickView?.InitPickUi(
                 handUiRoot.transform,
-                Camera.main,
+                tableCamera,
                 legendaryPickView != null ? legendaryPickView.CardPrefab : null);
 
-            EnsureIconButton(ref keepButton, "KeepButton", 0.5f, keepIcon, OnKeepClicked, false);
-            EnsureIconButton(ref listViewButton, "ListViewButton", 0.18f, listIcon, OnListViewClicked, false);
+            EnsureKeepButton(false);
+            EnsureStoreActionButton(ref listViewButton, "RiverToggleButton", RiverToggleButtonPosition, RiverToggleButtonScale, hideDeckIcon, OnRiverToggleClicked, false);
             listViewButtonIcon = listViewButton != null ? listViewButton.GetComponent<Image>() : null;
 
-            EnsureIconButton(ref buyButton, "BuyButton", 0.40f, buyIcon, OnBuyClicked, false);
-            EnsureIconButton(ref sellButton, "SellButton", 0.55f, sellIcon, OnSellClicked, false);
-            EnsureIconButton(ref tradeButton, "TradeButton", 0.70f, tradeIcon, OnTradeClicked, false);
+            EnsureStoreActionButton(ref buyButton, "BuyButton", BuyButtonPosition, BuyButtonScale, buyIcon, OnBuyClicked, false);
+            EnsureStoreActionButton(ref sellButton, "SellButton", SellButtonPosition, SellButtonScale, sellIcon, OnSellClicked, false);
+            EnsureStoreActionButton(ref tradeButton, "TradeButton", TradeButtonPosition, TradeButtonScale, tradeIcon, OnTradeClicked, false);
+            EnsurePhaseButton(ref nextPhaseButton, "NextPhaseButton", NextPhaseButtonInset, nextPhaseIcon, OnNextPhaseClicked);
+            EnsurePhaseButton(ref endTurnButton, "EndTurnButton", EndTurnButtonInset, endTurnIcon, OnEndTurnClicked);
+            UpdateTurnButtons();
         }
 
         void EnsurePickPrompt()
@@ -414,8 +670,8 @@ namespace LegendsOfTheUniverse.Presentation
             promptObject.transform.SetParent(handUiRoot.transform, false);
 
             pickPromptText = promptObject.AddComponent<Text>();
-            pickPromptText.text = "Review your cards, then choose your Legendary Icon";
-            pickPromptText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            pickPromptText.text = "Review your hand — \u267B redraw once per card, then Keep";
+            pickPromptText.font = GameFonts.Bold;
             pickPromptText.fontSize = 32;
             pickPromptText.fontStyle = FontStyle.Bold;
             pickPromptText.alignment = TextAnchor.MiddleCenter;
@@ -431,23 +687,46 @@ namespace LegendsOfTheUniverse.Presentation
             promptObject.SetActive(false);
         }
 
-        void EnsureIconButton(
+        void EnsureKeepButton(bool visible)
+        {
+            if (keepButton == null)
+            {
+                keepButton = CreateKeepButton();
+                keepButton.onClick.AddListener(OnKeepClicked);
+            }
+            else
+            {
+                keepButton.onClick.RemoveAllListeners();
+                keepButton.onClick.AddListener(OnKeepClicked);
+                ApplyKeepButtonLayout(keepButton);
+
+                var image = keepButton.GetComponent<Image>();
+                if (image != null && keepIcon != null)
+                    image.sprite = keepIcon;
+            }
+
+            keepButton.gameObject.SetActive(visible);
+        }
+
+        void EnsureStoreActionButton(
             ref Button button,
             string name,
-            float anchorX,
+            Vector3 anchoredPosition,
+            float scale,
             Sprite icon,
             UnityEngine.Events.UnityAction onClick,
             bool visible)
         {
             if (button == null)
             {
-                button = CreateIconButton(name, anchorX, icon);
+                button = CreateStoreActionButton(name, anchoredPosition, scale, icon);
                 button.onClick.AddListener(onClick);
             }
             else
             {
                 button.onClick.RemoveAllListeners();
                 button.onClick.AddListener(onClick);
+                ApplyStoreActionButtonLayout(button.GetComponent<RectTransform>(), anchoredPosition, scale);
 
                 var image = button.GetComponent<Image>();
                 if (image != null && icon != null)
@@ -457,28 +736,145 @@ namespace LegendsOfTheUniverse.Presentation
             button.gameObject.SetActive(visible);
         }
 
-        Button CreateIconButton(string name, float anchorX, Sprite icon)
+        Button CreateKeepButton()
         {
-            var buttonObject = new GameObject(name);
+            var buttonObject = new GameObject("KeepButton");
             buttonObject.transform.SetParent(handUiRoot.transform, false);
 
             var image = buttonObject.AddComponent<Image>();
-            image.sprite = icon;
+            image.sprite = keepIcon;
             image.color = IconNormalTint;
             image.preserveAspect = true;
             image.raycastTarget = true;
 
             var button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
-
-            var buttonRect = buttonObject.GetComponent<RectTransform>();
-            buttonRect.anchorMin = new Vector2(anchorX, 0.1f);
-            buttonRect.anchorMax = new Vector2(anchorX, 0.1f);
-            buttonRect.pivot = new Vector2(0.5f, 0.5f);
-            buttonRect.sizeDelta = new Vector2(IconButtonSize, IconButtonSize);
-            buttonRect.anchoredPosition = Vector2.zero;
-
+            ApplyKeepButtonLayout(button);
             return button;
+        }
+
+        static void ApplyKeepButtonLayout(Button button)
+        {
+            var buttonRect = button.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0.5f, KeepButtonAnchorY);
+            buttonRect.anchorMax = new Vector2(0.5f, KeepButtonAnchorY);
+            buttonRect.pivot = new Vector2(0.5f, 0.5f);
+            buttonRect.anchoredPosition3D = Vector3.zero;
+            buttonRect.localScale = Vector3.one * KeepButtonScale;
+            buttonRect.sizeDelta = new Vector2(IconButtonSize, IconButtonSize);
+        }
+
+        void EnsurePhaseButton(
+            ref Button button,
+            string name,
+            float insetFromRight,
+            Sprite icon,
+            UnityEngine.Events.UnityAction onClick)
+        {
+            if (button == null)
+            {
+                button = CreatePhaseButton(name, insetFromRight, icon);
+                button.onClick.AddListener(onClick);
+            }
+            else
+            {
+                button.onClick.RemoveAllListeners();
+                button.onClick.AddListener(onClick);
+                ApplyPhaseButtonLayout(button.GetComponent<RectTransform>(), insetFromRight);
+
+                var image = button.GetComponent<Image>();
+                if (image != null && icon != null)
+                    image.sprite = icon;
+            }
+
+            SetPhaseButtonState(button, true, false);
+        }
+
+        Button CreatePhaseButton(string name, float insetFromRight, Sprite icon)
+        {
+            var buttonObject = new GameObject(name);
+            buttonObject.transform.SetParent(handUiRoot.transform, false);
+
+            var image = buttonObject.AddComponent<Image>();
+            image.sprite = icon;
+            image.color = icon != null ? PhaseButtonEnabledTint : new Color(0.12f, 0.16f, 0.24f, 0.96f);
+            image.preserveAspect = true;
+            image.raycastTarget = true;
+
+            if (icon == null)
+            {
+                var caption = name.Replace("Button", string.Empty);
+                if (caption == "NextPhase")
+                    caption = "Next";
+                else if (caption == "EndTurn")
+                    caption = "End";
+                AddButtonCaption(buttonObject.transform, caption);
+            }
+
+            var button = buttonObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            ApplyPhaseButtonLayout(buttonObject.GetComponent<RectTransform>(), insetFromRight);
+            return button;
+        }
+
+        static void ApplyPhaseButtonLayout(RectTransform buttonRect, float insetFromRight)
+        {
+            buttonRect.anchorMin = new Vector2(1f, 0f);
+            buttonRect.anchorMax = new Vector2(1f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0.5f);
+            buttonRect.sizeDelta = new Vector2(PhaseButtonSize, PhaseButtonSize);
+            buttonRect.anchoredPosition3D = new Vector3(-insetFromRight, PhaseButtonBottomOffset, 0f);
+            buttonRect.localScale = Vector3.one;
+        }
+
+        Button CreateStoreActionButton(string name, Vector3 anchoredPosition, float scale, Sprite icon)
+        {
+            var buttonObject = new GameObject(name);
+            buttonObject.transform.SetParent(handUiRoot.transform, false);
+
+            var image = buttonObject.AddComponent<Image>();
+            image.sprite = icon;
+            image.color = icon != null ? IconNormalTint : new Color(0.12f, 0.16f, 0.24f, 0.96f);
+            image.preserveAspect = true;
+            image.raycastTarget = true;
+
+            if (icon == null)
+                AddButtonCaption(buttonObject.transform, name.Replace("Button", string.Empty));
+
+            var button = buttonObject.AddComponent<Button>();
+            button.targetGraphic = image;
+            ApplyStoreActionButtonLayout(buttonObject.GetComponent<RectTransform>(), anchoredPosition, scale);
+            return button;
+        }
+
+        static void AddButtonCaption(Transform parent, string label)
+        {
+            var textObject = new GameObject("Label");
+            textObject.transform.SetParent(parent, false);
+
+            var text = textObject.AddComponent<Text>();
+            text.text = label;
+            text.font = GameFonts.Bold;
+            text.fontSize = 14;
+            text.alignment = TextAnchor.MiddleCenter;
+            text.color = new Color(0.98f, 0.94f, 0.82f, 1f);
+            text.raycastTarget = false;
+
+            var rect = textObject.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+        }
+
+        static void ApplyStoreActionButtonLayout(RectTransform buttonRect, Vector3 anchoredPosition, float scale)
+        {
+            buttonRect.anchorMin = new Vector2(0.5f, 0f);
+            buttonRect.anchorMax = new Vector2(0.5f, 0f);
+            buttonRect.pivot = new Vector2(0.5f, 0.5f);
+            buttonRect.sizeDelta = new Vector2(StoreActionButtonSize, StoreActionButtonSize);
+            buttonRect.anchoredPosition3D = anchoredPosition;
+            buttonRect.localScale = Vector3.one * scale;
         }
     }
 }

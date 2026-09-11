@@ -27,7 +27,7 @@ Transform:
   m_GameObject: {fileID: 7283645566778899001}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: 0, y: 0, z: 1.5}
+  m_LocalPosition: {x: 0, y: -0.5, z: 1.5}
   m_LocalScale: {x: 3.2, y: 1, z: 1.8}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -100,7 +100,7 @@ GameObject:
   m_Component:
   - component: {fileID: 6540175856232384187}
   - component: {fileID: 9182736450192837465}
-  - component: {fileID: 8374728193847561032}
+  - component: {fileID: 8374728193847561040}
   - component: {fileID: 8374728193847561021}
   - component: {fileID: 8374728193847561022}
   - component: {fileID: 8374728193847561023}
@@ -109,6 +109,9 @@ GameObject:
   - component: {fileID: 8374728193847561029}
   - component: {fileID: 8374728193847561030}
   - component: {fileID: 8374728193847561031}
+  - component: {fileID: 8374728193847561032}
+  - component: {fileID: 8374728193847561033}
+  - component: {fileID: 8374728193847561034}
   m_Layer: 0
   m_Name: Table
   m_TagString: Untagged
@@ -131,6 +134,7 @@ Transform:
   m_Children:
   - {fileID: 7283645566778899002}
   - {fileID: 8374728193847561025}
+  - {fileID: 8374728193847561042}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &9182736450192837465
@@ -154,32 +158,33 @@ MonoBehaviour:
   playmatLiftWhenArenaPresent: 0.025
   matRoot: {fileID: 7283645566778899002}
   playmatMaterial: {fileID: 2100000, guid: b7c3d4e5f6a7890123456789abcdef12, type: 2}
-  playmatTexture: {fileID: 2800000, guid: cd77625cbe72d02469851a6f10c78f1c, type: 3}
+  playmatColor: {r: 0.035, g: 0.035, b: 0.042, a: 1}
   matSize: {x: 32, y: 18}
-  matPosition: {x: 0, y: 0, z: 1.5}
---- !u!114 &8374728193847561032
+  matPosition: {x: 0, y: -0.5, z: 1.5}
+--- !u!114 &8374728193847561040
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8280717893725965024}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0d80dcace37e9334f9bd7541fb2788c3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  wallsModel: {fileID: 919132149155446097, guid: 6cca4efb0b885384fb2f58a82e59d706, type: 3}
-  purpleMatModel: {fileID: 919132149155446097, guid: 55bbb4fd0a752704dba91326b2fe5f8d, type: 3}
-  purpleMatAlbedo: {fileID: 2800000, guid: 192194ecfea34b44e849254065137bf2, type: 3}
-  autoFitMatToPlaymat: 1
+  wallsModel: {fileID: 0}
+  purpleMatModel: {fileID: 0}
+  purpleMatAlbedo: {fileID: 0}
+  autoFitMatToPlaymat: 0
   wallsLocalPosition: {x: 0, y: 0, z: 0}
   wallsLocalEuler: {x: 0, y: 0, z: 0}
   wallsUniformScale: 1
-  matLocalPosition: {x: 0, y: 0.03, z: 1.5}
+  matLocalPosition: {x: 0, y: -1, z: 0.5}
   matLocalEuler: {x: -90, y: 0, z: 0}
-  matUniformScale: 1
-  hideFlatPlaymatWhenMeshReady: 1
+  matUniformScale: 580
+  hideFlatPlaymatWhenMeshReady: 0
+  props: []
 --- !u!114 &8374728193847561021
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -194,11 +199,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
   storeSlotCount: 7
-  rowCenter: {x: 0.5, y: 0.05, z: 8.5}
+  rowCenter: {x: 0.5, y: 0.45, z: 8.5}
   rowSpacing: 2.55
   storeCardScale: 3.8
   cardLift: 0.03
-  listAnchor: {x: -13.5, y: 0.05, z: 7.5}
+  listAnchor: {x: -13.5, y: 0.45, z: 7.5}
   listVerticalSpacing: 3.2
   dealDuration: 0.22
   dealStagger: 0.04
@@ -210,7 +215,7 @@ MonoBehaviour:
   hoverForward: -0.18
   hoverAnimDuration: 0.12
   inspectScale: 3.8
-  inspectPosition: {x: 0, y: 0.1, z: 0.5}
+  inspectPosition: {x: 0, y: 0.24, z: 0.5}
   inspectAnimDuration: 0.25
   inspectPeerScaleMultiplier: 0.72
   inspectPeerZOffset: 0.65
@@ -229,14 +234,14 @@ MonoBehaviour:
   cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
   openingHandSize: 7
   dealScale: 3.8
-  dealHandCenter: {x: 0, y: 0.04, z: -1.5}
+  dealHandCenter: {x: 0, y: 0.42, z: -1.5}
   dealSpreadSpacing: 4.26
   dealDuration: 0.35
   dealStagger: 0.05
   flipDuration: 0.22
   flipStagger: 0.04
   keptScale: 3.8
-  keptHandCenter: {x: 0, y: 0.04, z: -6}
+  keptHandCenter: {x: 0, y: 0.42, z: -6}
   keptSpreadSpacing: 4.26
   keepAnimDuration: 0.45
   hoverScaleMultiplier: 1.14
@@ -244,7 +249,7 @@ MonoBehaviour:
   hoverForward: 0.18
   hoverAnimDuration: 0.12
   inspectScale: 3.8
-  inspectPosition: {x: 0, y: 0.06, z: -1.5}
+  inspectPosition: {x: 0, y: 0.2, z: -1.5}
   inspectAnimDuration: 0.25
   dragScreenThreshold: 12
   dragLift: 0.1
@@ -265,10 +270,14 @@ MonoBehaviour:
   storeView: {fileID: 8374728193847561021}
   storeActions: {fileID: 8374728193847561026}
   legendaryPickView: {fileID: 8374728193847561028}
-  cardBackPickView: {fileID: 0}
+  cardBackPickView: {fileID: 8374728193847561034}
   iconSlotView: {fileID: 8374728193847561029}
-  deckPoint: {fileID: 8374728193847561025}
-  playmatZones: {fileID: 0}
+  deckPoint: {fileID: 8374728193847561042}
+  playmatZones: {fileID: 8374728193847561031}
+  openingHandRedrawView: {fileID: 8374728193847561030}
+  supplyDeckView: {fileID: 8374728193847561027}
+  turnFlow: {fileID: 8374728193847561032}
+  matchBridge: {fileID: 8374728193847561033}
 --- !u!114 &8374728193847561026
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -283,9 +292,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   handView: {fileID: 8374728193847561022}
   storeView: {fileID: 8374728193847561021}
-  deckPoint: {fileID: 8374728193847561025}
-  outOfPlayZone: {fileID: 0}
-  outZonePosition: {x: -14, y: 0.05, z: 2.5}
   actionAnimDuration: 0.35
 --- !u!114 &8374728193847561028
 MonoBehaviour:
@@ -300,13 +306,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
-  pickCenter: {x: 0, y: 0.05, z: -1}
+  pickCenter: {x: 0, y: 0.45, z: 0.5}
   pickSpacing: 5
   pickCardScale: 3.8
   selectedScale: 3.8
   pickAnimDuration: 0.35
   pickChoiceCount: 5
-  inspectPosition: {x: -3.5, y: 0.1, z: -0.5}
+  inspectPosition: {x: -2, y: 0.1, z: 1.5}
   inspectScale: 3.8
   inspectPeerScaleMultiplier: 0.72
   inspectPeerZOffset: 0.75
@@ -324,11 +330,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
-  slotPosition: {x: -5.74, y: 0, z: 1.87}
-  iconScale: 3.8
   placeAnimDuration: 0.4
   inspectPosition: {x: -4, y: 0.1, z: 1.5}
-  inspectScale: 3.8
   inspectAnimDuration: 0.25
 --- !u!114 &8374728193847561030
 MonoBehaviour:
@@ -355,6 +358,63 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+--- !u!114 &8374728193847561032
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1c2d3e4f5a6478990abcdef12345678, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  handView: {fileID: 8374728193847561022}
+  playmatZones: {fileID: 8374728193847561031}
+  storeView: {fileID: 8374728193847561021}
+  matchBridge: {fileID: 8374728193847561033}
+--- !u!114 &8374728193847561033
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e7f8a9b0c1d2e3f405162738495a6b7c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playmatZones: {fileID: 8374728193847561031}
+  turnFlow: {fileID: 8374728193847561032}
+  localPlayerId: 0
+  rngSeed: 42
+  localIconPrintingId: VANILLA-ICON
+  opponentIconPrintingId: VANILLA-ICON
+--- !u!114 &8374728193847561034
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8280717893725965024}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f89738cc01bb70d0b71535eb2ebada4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  cardPrefab: {fileID: 8100000000000000003, guid: c1d2e3f4a5b6789012345678abcdef34, type: 3}
+  pickCenter: {x: 0, y: 0.45, z: 0}
+  pickSpacing: 6
+  pickCardScale: 3.8
+  selectedScale: 3.8
+  pickAnimDuration: 0.35
+  inspectPosition: {x: 0, y: 0.42, z: -0.5}
+  inspectScale: 4.37
+  inspectPeerScaleMultiplier: 0.72
+  inspectPeerZOffset: 0.75
+  inspectAnimDuration: 0.25
 --- !u!1 &8374728193847561024
 GameObject:
   m_ObjectHideFlags: 0
@@ -381,7 +441,38 @@ Transform:
   m_GameObject: {fileID: 8374728193847561024}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -12.5, y: 0.05, z: 8.5}
+  m_LocalPosition: {x: -12.5, y: 0.12, z: 8.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 6540175856232384187}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &8374728193847561041
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8374728193847561042}
+  m_Layer: 0
+  m_Name: DeckPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8374728193847561042
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8374728193847561041}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 18.1, y: 0.12, z: -7.23}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

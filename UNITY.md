@@ -1,39 +1,43 @@
-# Unity project layout
+# Unity — ONE folder to open
 
-## Two folders — why?
+## Open this in Unity Hub
 
-| Location | Role |
-| --- | --- |
-| **`C:\Users\Chemeleon\Legends Of The Universe`** | **Open this in Unity.** Scenes, prefabs, audio, full `Assets/`, builds. |
-| **`C:\Users\Chemeleon\Documents\git\legendsoftheuniverse`** | **Git / source control.** C# in `Scripts/`, card art in `Assets/Cards/`, catalog tools in `catalog/`. |
+`C:\Users\Chemeleon\Documents\git\legendsoftheuniverse`
 
-They are the same game, but only the Unity folder is a complete project. The git repo holds scripts and shared assets; changes are copied into the Unity project (or vice versa) until we merge into one root.
+Cursor edits **`Assets/Scripts/`** here. Unity only compiles scripts under **`Assets/`** — not any other folder.
 
-**Recommendation:** Treat **`Legends Of The Universe`** as the workspace. After editing scripts in git `Scripts/Presentation/`, sync to `Legends Of The Universe/Assets/Scripts/Presentation/`. Put new art in **both** `Assets/Arenas/` and `Assets/Playmats/` under the Unity project, then commit from git when those paths exist there too.
+## Why changes sometimes “don’t compile”
 
-You can delete the empty stub `Legends Of The Universe/Assets/legendsoftheuniverse/` — it is not used.
+### 1. Wrong Unity project folder (most common)
 
-## Arena vs playmat (table)
+Your Unity Editor log shows this path:
 
-```
-Table (prefab) + DojoArenaView
-├── DojoWalls      ← FBX wall panels   Assets/Arenas/10thPlanetDojo/DojoWalls/
-├── PurpleMat      ← FBX purple mat    Assets/Arenas/10thPlanetDojo/PurpleMat/
-├── Playmat        ← optional flat plane (hidden when mesh playmat is on)
-└── DeckPoint
-```
+`C:\Users\Chemeleon\Legends Of The Universe`
 
-- **`DojoWalls/`** — Meshy wall FBX around the table.
-- **`PurpleMat/`** — Meshy purple floor mesh + textures; cards align to `PlaymatZones` on top.
-- **`Assets/Playmats/`** — flat JPG playmat (shown by default).
+Cursor’s workspace is:
 
-On **Table** prefab, **Dojo Arena View** loads the Meshy **PurpleMat** FBX + albedo texture automatically. When the mesh is oriented and sized correctly, the flat JPG playmat hides itself. Right-click the component → **Rebuild Dojo Arena** after changing scale/rotation. Verify **Purple Mat Model** points at `PurpleMat/...fbx` (not the walls FBX).
+`C:\Users\Chemeleon\Documents\git\legendsoftheuniverse`
 
-## Paths
+Those are **two copies**. If Unity opens the old folder, Cursor edits the git folder — Unity never sees them unless you sync manually.
 
-| What | Unity path |
-| --- | --- |
-| Arena prefabs | `Assets/Arenas/10thPlanetDojo/` |
-| Purple playmat image | `Assets/Playmats/10th Planet.jpg` |
-| Table prefab | `Assets/Table.prefab` |
-| Card zones (code) | `Assets/Scripts/Presentation/PlaymatZones.cs` |
+**Fix:** In Unity Hub, remove the old project and add **`legendsoftheuniverse`** (the git repo). Open only that one.
+
+### 2. Enter Play Mode Options (fast play mode)
+
+If **Enter Play Mode Options** skips **Reload Domain**, Play mode can keep running **old code** even after a successful recompile. The log line to watch for:
+
+`Entering Playmode with Reload Domain disabled.`
+
+**Fix:** Edit → Project Settings → Editor → disable **Enter Play Mode Options**, or turn **Reload Domain** back on. This repo’s `ProjectSettings/EditorSettings.asset` now has fast play mode **off**.
+
+### 3. Unity didn’t refresh yet
+
+After a file save, click the Unity window (or **Assets → Refresh**) and wait for the spinner in the bottom-right to finish. **Stop Play mode** before expecting script changes in a new run.
+
+## Deprecated path (stop using)
+
+`C:\Users\Chemeleon\Legends Of The Universe` — old duplicate. Do not open in Hub.
+
+## Quick check that Unity picked up new code
+
+In `Assets/Scripts/Presentation/HandFlowController.cs`, **`BeginOpeningHand` must NOT call `DealStoreRoutine`**. Store opens only in `AfterKeepSequence` via `BeginRoundRoutine` after the Icon pick.

@@ -10,10 +10,12 @@ namespace LegendsOfTheUniverse.Presentation
     {
         public const float MatWidth = 32f;
         public const float MatDepth = 18f;
-        public static readonly Vector3 MatCenter = new(0f, 0f, 1.5f);
+        public const float PlaymatY = -0.5f;
+        public static readonly Vector3 MatCenter = new(0f, PlaymatY, 1.5f);
 
-        public const float CardY = 0.05f;
-        public const float HandY = 0.04f;
+        /// <summary>Tabletop height for cards, store, and zones (above the playmat plane).</summary>
+        public const float CardY = 0.45f;
+        public const float HandY = 0.42f;
 
         /// <summary>Uniform world scale for every card on the table.</summary>
         public const float CardScale = 3.8f;
@@ -30,16 +32,16 @@ namespace LegendsOfTheUniverse.Presentation
         public const int StoreSlotCount = 7;
         public const float StoreSpacing = 2.55f;
 
-        // Left column
-        public static readonly Vector3 Deck = new(-14f, CardY, 5.5f);
-        public static readonly Vector3 OutOfPlay = new(-14f, CardY, 2.5f);
-        public static readonly Vector3 Banished = new(-14f, CardY, -0.5f);
-        public static readonly Vector3 ListViewAnchor = new(-13.5f, CardY, 7.5f);
+        // Player deck (draw pile) and piles
+        public static readonly Vector3 Deck = new(18.1f, CardY, -7.23f);
+        public static readonly Vector3 Banished = new(-17.9f, CardY, -0.2f);
+
+        // Icon — bottom-left (player side)
+        public static readonly Vector3 Icon = new(-17.8f, CardY, -7.37f);
 
         // Center play area
-        public static readonly Vector3 Icon = new(-5.74f, 0f, 1.87f);
-        public static readonly Vector3 FieldCenter = new(-2.5f, CardY, 2f);
-        public static readonly Vector3 RelicBondCenter = new(5.5f, CardY, 2f);
+        public static readonly Vector3 FieldCenter = new(-0.09f, CardY, 3.6f);
+        public static readonly Vector3 RelicBondCenter = new(-0.06f, CardY, -2.04f);
         public const int FieldSlotCount = 4;
         public const int RelicBondSlotCount = 4;
         public const float FieldSlotSpacing = 1.65f;
@@ -52,10 +54,15 @@ namespace LegendsOfTheUniverse.Presentation
         public static readonly Vector3 OpeningHandCenter = new(0f, HandY, -1.5f);
         public static float OpeningHandSpreadSpacing => CardLayout.SpreadSpacing(CardScale);
 
-        // Right trackers
-        public static readonly Vector3 WillRoundTrack = new(14f, CardY, 5.5f);
-        public static readonly Vector3 Worth = new(14f, CardY, 2.5f);
-        public static readonly Vector3 Honor = new(14f, CardY, -0.5f);
+        // Engine A mat zones
+        public static readonly Vector3 StackWell = new(0.5f, CardY, 6.8f);
+        public static readonly Vector3 Willwell = new(-12f, CardY, 3.6f);
+        public static readonly Vector3 HoldPlate = new(-10f, CardY, -5.2f);
+
+        // Trackers
+        public static readonly Vector3 WillRoundTrack = new(18.4f, CardY, 3.51f);
+        public static readonly Vector3 Worth = new(-13.9f, CardY, 1.52f);
+        public static readonly Vector3 Honor = new(-13.9f, CardY, -0.5f);
         public const int MaxRound = 8;
 
         public const float TableFitMargin = 1.75f;
@@ -84,8 +91,9 @@ namespace LegendsOfTheUniverse.Presentation
 
             maxZ = Mathf.Max(maxZ, StoreRowCenter.z + cardHalfD + margin);
             maxZ = Mathf.Max(maxZ, Supply.z + cardHalfD + margin);
-            minX = Mathf.Min(minX, Deck.x - cardHalfW - margin);
-            maxX = Mathf.Max(maxX, WillRoundTrack.x + cardHalfW + margin);
+            minX = Mathf.Min(minX, Banished.x - cardHalfW - margin, Icon.x - cardHalfW - margin);
+            maxX = Mathf.Max(maxX, Deck.x + cardHalfW + margin, WillRoundTrack.x + cardHalfW + margin);
+            minZ = Mathf.Min(minZ, Deck.z - cardHalfD - margin, Icon.z - cardHalfD - margin);
 
             return new TableContentBounds(minX, maxX, minZ, maxZ);
         }

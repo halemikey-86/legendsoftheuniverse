@@ -14,7 +14,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] CardView cardPrefab;
 
         [Header("Layout")]
-        [SerializeField] Vector3 pickCenter = new(0f, 0.05f, 0f);
+        [SerializeField] Vector3 pickCenter = new(0f, PlaymatZones.CardY, 0f);
         [SerializeField] float pickSpacing = 6f;
         [SerializeField] float pickCardScale = PlaymatZones.CardScale;
         [SerializeField] float selectedScale = PlaymatZones.CardScale;
@@ -40,6 +40,14 @@ namespace LegendsOfTheUniverse.Presentation
         public bool HasSelected => selectedBack != null;
         public bool IsInspecting => inspectingCard != null || choiceModal.IsVisible;
         public bool IsPickActive => pickCards.Count > 0 && !pickComplete;
+
+        void OnEnable() => SyncLayoutFromPlaymat();
+
+        void SyncLayoutFromPlaymat()
+        {
+            pickCenter.y = PlaymatZones.CardY;
+            inspectPosition.y = PlaymatZones.HandY;
+        }
 
         public void InitPickUi(Transform canvasRoot, Camera camera, CardView fallbackPrefab = null)
         {

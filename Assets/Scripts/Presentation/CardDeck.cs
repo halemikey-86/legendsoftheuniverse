@@ -27,7 +27,7 @@ namespace LegendsOfTheUniverse.Presentation
         }
 
         /// <summary>
-        /// Build the opening pool: non-Icon cards shuffled, capped to setup size (47 = 7 store + 7 hand + 33 supply).
+        /// Build the opening pool: non-Icon cards shuffled, capped to setup size (40 = 7 hand + 33 supply).
         /// </summary>
         public static void PrepareSetupPool()
         {
@@ -70,6 +70,36 @@ namespace LegendsOfTheUniverse.Presentation
             drawPile.Clear();
             SelectedLegendaryIcon = null;
             SelectedCardBack = null;
+            NotifyCountChanged();
+        }
+
+        /// <summary>
+        /// Return a card to the supply pile (e.g. opening-hand mulligan).
+        /// </summary>
+        public static void ReturnToSupply(Texture2D front)
+        {
+            if (front == null)
+                return;
+
+            drawPile.Add(front);
+            NotifyCountChanged();
+        }
+
+        /// <summary>
+        /// Add unpicked legendary icons (or any fronts) into the supply and reshuffle.
+        /// </summary>
+        public static void ReturnManyToSupplyAndShuffle(IReadOnlyList<Texture2D> fronts)
+        {
+            if (fronts == null || fronts.Count == 0)
+                return;
+
+            for (var i = 0; i < fronts.Count; i++)
+            {
+                if (fronts[i] != null)
+                    drawPile.Add(fronts[i]);
+            }
+
+            Shuffle(drawPile);
             NotifyCountChanged();
         }
 

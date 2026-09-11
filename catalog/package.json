@@ -8,7 +8,7 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "node scripts/migrate.mjs",
     "export": "node scripts/export-engine-json.mjs",
-    "export:unity": "node scripts/export-engine-json.mjs \"../../Legends Of The Universe/Assets/StreamingAssets/willbound-cards.json\"",
+    "export:unity": "node scripts/export-engine-json.mjs \"../Assets/StreamingAssets/willbound-cards.json\"",
     "import:images": "node scripts/import-assets-images.mjs --api https://willbound-catalog-api.fly.dev",
     "import:images:dry": "node scripts/import-assets-images.mjs --api https://willbound-catalog-api.fly.dev --dry-run",
     "import:images:local": "node scripts/import-assets-images.mjs --local",

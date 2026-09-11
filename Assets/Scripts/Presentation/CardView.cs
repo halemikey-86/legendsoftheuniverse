@@ -13,8 +13,10 @@ namespace LegendsOfTheUniverse.Presentation
         const string DefaultFaceMaterialPath = "Assets/Materials/CardFace.mat";
 
         public static readonly Quaternion TableRotation = Quaternion.identity;
+        public static readonly Quaternion PileRootRotation = Quaternion.Euler(0f, 180f, 0f);
+        public static readonly Quaternion StackRotation = PileRootRotation;
         static readonly Quaternion FrontFaceRotation = Quaternion.Euler(0f, 180f, 0f);
-        static readonly Quaternion BackFaceRotation = Quaternion.Euler(180f, 0f, 0f);
+        static readonly Quaternion BackFaceRotation = Quaternion.Euler(0f, 180f, 0f);
         static readonly Quaternion FaceUpShellRotation = Quaternion.identity;
         static readonly Quaternion FaceDownShellRotation = Quaternion.Euler(180f, 0f, 0f);
 
@@ -92,6 +94,11 @@ namespace LegendsOfTheUniverse.Presentation
         public void ApplyTableOrientation()
         {
             transform.localRotation = TableRotation;
+        }
+
+        public void ApplyStackOrientation()
+        {
+            ApplyTableOrientation();
         }
 
         void EnsureShell()
@@ -216,33 +223,23 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (backRenderer != null && cardBackMaterial != null)
             {
-                if (backMaterialInstance == null || backMaterialInstance.shader != cardBackMaterial.shader)
+                if (backMaterialInstance == null)
                     backMaterialInstance = new Material(cardBackMaterial);
 
-                if (cardBackTexture != null)
-                {
-                    backMaterialInstance.mainTexture = cardBackTexture;
-                    if (backMaterialInstance.HasProperty("_BaseMap"))
-                        backMaterialInstance.SetTexture("_BaseMap", cardBackTexture);
-                }
-
+                TablePresentation.ConfigureCardMaterial(backMaterialInstance, cardBackTexture);
                 backRenderer.sharedMaterial = backMaterialInstance;
+                TablePresentation.EnsureRendererVisible(backRenderer);
             }
 
             if (frontRenderer == null || cardFaceMaterial == null)
                 return;
 
-            if (frontMaterialInstance == null || frontMaterialInstance.shader != cardFaceMaterial.shader)
+            if (frontMaterialInstance == null)
                 frontMaterialInstance = new Material(cardFaceMaterial);
 
-            if (frontTexture != null)
-            {
-                frontMaterialInstance.mainTexture = frontTexture;
-                if (frontMaterialInstance.HasProperty("_BaseMap"))
-                    frontMaterialInstance.SetTexture("_BaseMap", frontTexture);
-            }
-
+            TablePresentation.ConfigureCardMaterial(frontMaterialInstance, frontTexture);
             frontRenderer.sharedMaterial = frontMaterialInstance;
+            TablePresentation.EnsureRendererVisible(frontRenderer);
         }
 
 #if UNITY_EDITOR
