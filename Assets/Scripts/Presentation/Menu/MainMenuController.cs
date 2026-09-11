@@ -195,8 +195,37 @@ namespace LegendsOfTheUniverse.Presentation.Menu
                 GameSettings.ApplyAll();
             });
 
-            MenuUiBuilder.CreateMenuButton(screen.transform, "Back", 0.08f, ShowMainScreen);
+            BuildCardBackRow(screen.transform, 0.14f);
+
+            MenuUiBuilder.CreateMenuButton(screen.transform, "Back", 0.06f, ShowMainScreen);
             return screen;
+        }
+
+        static void BuildCardBackRow(Transform parent, float yAnchor)
+        {
+            var backs = CardCatalog.LoadCardBacks();
+            if (backs.Count == 0)
+                return;
+
+            var names = new string[backs.Count];
+            var labels = new string[backs.Count];
+            var selectedIndex = 0;
+            var currentName = GameSettings.CardBackName;
+
+            for (var i = 0; i < backs.Count; i++)
+            {
+                names[i] = backs[i].name;
+                labels[i] = CardCatalog.FormatCardBackName(backs[i].name);
+                if (backs[i].name == currentName)
+                    selectedIndex = i;
+            }
+
+            MenuUiBuilder.CreateLabel(parent, "Card Back", new Vector2(0.18f, yAnchor), new Vector2(240f, 32f));
+            MenuUiBuilder.CreateDropdown(parent, new Vector2(0.62f, yAnchor), labels, selectedIndex, index =>
+            {
+                GameSettings.CardBackName = names[index];
+                PlayerPrefs.Save();
+            });
         }
 
         static void BuildVolumeRow(Transform parent, string label, float yAnchor, float value, UnityEngine.Events.UnityAction<float> onChanged)

@@ -9,6 +9,7 @@ namespace LegendsOfTheUniverse.Presentation.Menu
         const string MusicVolumeKey = "settings.musicVolume";
         const string FullscreenKey = "settings.fullscreen";
         const string QualityKey = "settings.quality";
+        const string CardBackNameKey = "settings.cardBackName";
 
         public static float MasterVolume
         {
@@ -38,6 +39,12 @@ namespace LegendsOfTheUniverse.Presentation.Menu
         {
             get => PlayerPrefs.GetInt(QualityKey, QualitySettings.GetQualityLevel());
             set => PlayerPrefs.SetInt(QualityKey, Mathf.Clamp(value, 0, QualitySettings.names.Length - 1));
+        }
+
+        public static string CardBackName
+        {
+            get => PlayerPrefs.GetString(CardBackNameKey, "");
+            set => PlayerPrefs.SetString(CardBackNameKey, value ?? "");
         }
 
         public static float EffectiveSfxVolume => MasterVolume * SfxVolume;

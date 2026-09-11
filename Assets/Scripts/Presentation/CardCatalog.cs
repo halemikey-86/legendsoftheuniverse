@@ -170,6 +170,21 @@ namespace LegendsOfTheUniverse.Presentation
             return backs.Count > 0 ? backs[0] : null;
         }
 
+        public static Texture2D GetCardBackByName(string textureName)
+        {
+            if (string.IsNullOrEmpty(textureName))
+                return GetDefaultCardBack();
+
+            var backs = LoadCardBacks();
+            for (var i = 0; i < backs.Count; i++)
+            {
+                if (backs[i] != null && backs[i].name == textureName)
+                    return backs[i];
+            }
+
+            return GetDefaultCardBack();
+        }
+
         public static string FormatCardBackName(string textureName)
         {
             if (string.IsNullOrEmpty(textureName))

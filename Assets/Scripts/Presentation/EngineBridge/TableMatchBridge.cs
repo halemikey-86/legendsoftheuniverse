@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using LegendsOfTheUniverse.Rules;
 using UnityEngine;
 using Willbound.Engine;
+using GameEvent = Willbound.Engine.GameEvent;
+using StoreActionKind = Willbound.Engine.StoreActionKind;
+using CardType = Willbound.Engine.CardType;
 
 namespace LegendsOfTheUniverse.Presentation.EngineBridge
 {
@@ -19,8 +22,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         [SerializeField] TurnFlowController turnFlow;
         [SerializeField] int localPlayerId;
         [SerializeField] int rngSeed = 42;
-        [SerializeField] string localIconPrintingId = "VANILLA-ICON";
-        [SerializeField] string opponentIconPrintingId = "VANILLA-ICON";
+        [SerializeField] string localIconPrintingId = "gk-01";
+        [SerializeField] string opponentIconPrintingId = "gk-01";
 
         MatchRunner runner;
         InMemoryCardDatabase database;
@@ -54,13 +57,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                     new SetupPlayer
                     {
                         PlayerId = 0,
-                        IconId = localIconPrintingId,
+                        IconId = ResolveIconId(printings, localIconPrintingId),
                         DeckIds = EngineCatalog.DefaultDeck(30),
                     },
                     new SetupPlayer
                     {
                         PlayerId = 1,
-                        IconId = opponentIconPrintingId,
+                        IconId = ResolveIconId(printings, opponentIconPrintingId),
                         DeckIds = EngineCatalog.DefaultDeck(30),
                     },
                 };
@@ -76,6 +79,22 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 Debug.LogError($"[TableMatchBridge] Failed to start engine match: {ex.Message}");
                 EngineError?.Invoke("Rules engine failed to start — solo UI will continue without engine validation.");
             }
+        }
+
+        static string ResolveIconId(IReadOnlyList<CardPrinting> printings, string requestedId)
+        {
+            CardPrinting firstIcon = null;
+            for (var i = 0; i < printings.Count; i++)
+            {
+                var p = printings[i];
+                if (p.Type != CardType.Icon)
+                    continue;
+                if (p.Id == requestedId)
+                    return requestedId;
+                firstIcon ??= p;
+            }
+
+            return firstIcon?.Id ?? requestedId;
         }
 
         public ApplyResult TryApply(PlayerAction action)
@@ -110,6 +129,35 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             {
                 Kind = PlayerActionKind.Pass,
                 PlayerId = localPlayerId,
+            });
+
+            if (!result.Success)
+            {
+                error = result.Error;
+                EngineError?.Invoke(error);
+                return false;
+            }
+
+            ProcessEvents(result.Events);
+            SyncHudFromEngine();
+            RaisePhaseChanged(false);
+            return true;
+        }
+
+        public bool TryPlayCard(int cardInstanceId, out string error)
+        {
+            error = null;
+            if (!IsActive)
+            {
+                error = "Engine not active.";
+                return false;
+            }
+
+            var result = ApplyWithAutoPass(new PlayerAction
+            {
+                Kind = PlayerActionKind.PlayCard,
+                PlayerId = localPlayerId,
+                CardInstanceId = cardInstanceId,
             });
 
             if (!result.Success)

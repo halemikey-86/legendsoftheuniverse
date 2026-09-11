@@ -18,6 +18,7 @@ namespace LegendsOfTheUniverse.Presentation
         [Header("Horizontal Row")]
         [SerializeField] int storeSlotCount = PlaymatZones.StoreSlotCount;
         [SerializeField] Vector3 rowCenter = PlaymatZones.StoreRowCenter;
+        [SerializeField] Vector3 listAnchor = new(-13.5f, 0.45f, 7.5f);
         [SerializeField] float rowSpacing = PlaymatZones.StoreSpacing;
         [SerializeField] float storeCardScale = PlaymatZones.StoreCardScale;
         [SerializeField] float cardLift = 0.03f;

@@ -188,7 +188,7 @@ namespace Willbound.Engine
         }
 
         static string GetString(JsonElement el, string name) =>
-            el.TryGetProperty(name, out var prop) ? prop.GetString() : null;
+            el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String ? prop.GetString() : null;
 
         static int GetInt(JsonElement el, string name) =>
             el.TryGetProperty(name, out var prop) && prop.TryGetInt32(out var value) ? value : 0;

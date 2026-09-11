@@ -171,6 +171,14 @@ namespace LegendsOfTheUniverse.Presentation
             clickCollider.enabled = clickable;
         }
 
+        /// <summary>Non-null when this card represents a real Willbound.Engine.CardInstance in a player's hand.</summary>
+        public int? EngineCardInstanceId { get; private set; }
+
+        public void SetEngineCardInstanceId(int? instanceId)
+        {
+            EngineCardInstanceId = instanceId;
+        }
+
         void EnsureClickCollider()
         {
             if (clickCollider == null)

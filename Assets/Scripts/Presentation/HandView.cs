@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
+using Willbound.Engine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -67,6 +69,10 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float dragLift = 0.1f;
         [SerializeField] float dragReorderDuration = 0.2f;
 
+        [Header("Drag To Play")]
+        [SerializeField] TableMatchBridge matchBridge;
+        [SerializeField] float playDropZThreshold = -2f;
+
         readonly List<CardView> handCards = new();
         readonly Dictionary<CardView, Coroutine> hoverAnimations = new();
         CardView selectedCard;
@@ -117,6 +123,46 @@ namespace LegendsOfTheUniverse.Presentation
             storeView = store;
         }
 
+        public void BindMatchBridge(TableMatchBridge bridge)
+        {
+            matchBridge = bridge;
+        }
+
+        /// <summary>Replaces the current hand display with one that mirrors the engine's real starting hand,
+        /// so each visible card carries a real CardInstanceId and can be dragged onto the field to play it.</summary>
+        public void SyncHandFromEngine(IReadOnlyList<CardInstance> engineHand)
+        {
+            ClearHand();
+            handKept = true;
+            handTucked = false;
+            selectedCard = null;
+
+            if (cardPrefab == null || engineHand == null)
+                return;
+
+            for (var i = 0; i < engineHand.Count; i++)
+            {
+                var instance = engineHand[i];
+                if (instance == null)
+                    continue;
+
+                var slot = GetSpreadSlot(i, engineHand.Count, keptHandCenter, keptSpreadSpacing, i * 0.002f);
+                var card = Instantiate(cardPrefab, slot.Position, slot.Rotation, transform);
+                card.SetFrontTexture(EngineCatalog.GetCardArt(instance.Printing));
+                card.SetFaceUpImmediate(true);
+                card.SetCardScale(keptScale);
+                card.SetClickable(true);
+                card.SetEngineCardInstanceId(instance.InstanceId);
+
+                var clickHandler = card.GetComponent<CardClickHandler>();
+                if (clickHandler == null)
+                    clickHandler = card.gameObject.AddComponent<CardClickHandler>();
+                clickHandler.Init(this);
+
+                handCards.Add(card);
+            }
+        }
+
         public void ClearInspectSelection()
         {
             if (selectedCard == null)
@@ -139,6 +185,7 @@ namespace LegendsOfTheUniverse.Presentation
             discardMode = false;
             discardCompleteCallback = null;
             IsDealing = false;
+            HideFieldSlotHighlight();
             ClearHand();
         }
 
@@ -417,10 +464,15 @@ namespace LegendsOfTheUniverse.Presentation
             worldPosition.y += dragLift;
             card.transform.position = worldPosition;
             card.transform.rotation = CardView.TableRotation;
+
+            UpdatePlayDropHighlight(card, worldPosition);
         }
 
         void EndDrag(CardView card)
         {
+            if (TryHandlePlayDrop(card))
+                return;
+
             var oldIndex = handCards.IndexOf(card);
             if (oldIndex < 0)
             {
@@ -441,6 +493,112 @@ namespace LegendsOfTheUniverse.Presentation
 
             draggingCard = null;
             StartCoroutine(LayoutKeptHandRoutine(dragReorderDuration));
+        }
+
+        /// <summary>If a real engine card was dragged forward past the hand row (toward the field), attempt to
+        /// play it. Returns true once the drop is handled — either the card left the hand, or an illegal play
+        /// was rejected and the card returns to its slot.</summary>
+        bool TryHandlePlayDrop(CardView card)
+        {
+            HideFieldSlotHighlight();
+
+            if (matchBridge == null || card.EngineCardInstanceId == null)
+                return false;
+
+            if (card.transform.position.z < playDropZThreshold)
+                return false;
+
+            draggingCard = null;
+
+            if (matchBridge.TryPlayCard(card.EngineCardInstanceId.Value, out _))
+            {
+                handCards.Remove(card);
+                StartCoroutine(AnimateCardPlayedAwayRoutine(card));
+            }
+
+            StartCoroutine(LayoutKeptHandRoutine(dragReorderDuration));
+            return true;
+        }
+
+        static readonly Color FieldHighlightLegalColor = new(0.35f, 0.9f, 0.5f, 0.55f);
+        static readonly Color FieldHighlightFullColor = new(0.9f, 0.35f, 0.35f, 0.5f);
+        Transform fieldSlotHighlight;
+
+        void UpdatePlayDropHighlight(CardView card, Vector3 worldPosition)
+        {
+            if (matchBridge == null || card.EngineCardInstanceId == null || !matchBridge.IsActive)
+            {
+                HideFieldSlotHighlight();
+                return;
+            }
+
+            if (worldPosition.z < playDropZThreshold)
+            {
+                HideFieldSlotHighlight();
+                return;
+            }
+
+            var fieldCount = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId).Field.Count;
+            if (fieldCount >= PlaymatZones.FieldSlotCount)
+                ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(PlaymatZones.FieldSlotCount - 1), false);
+            else
+                ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(fieldCount), true);
+        }
+
+        void ShowFieldSlotHighlight(Vector3 worldPosition, bool legal)
+        {
+            EnsureFieldSlotHighlight();
+            fieldSlotHighlight.position = worldPosition + new Vector3(0f, 0.02f, 0f);
+            fieldSlotHighlight.gameObject.SetActive(true);
+
+            var renderer = fieldSlotHighlight.GetComponent<Renderer>();
+            if (renderer != null)
+                renderer.sharedMaterial.color = legal ? FieldHighlightLegalColor : FieldHighlightFullColor;
+        }
+
+        void HideFieldSlotHighlight()
+        {
+            if (fieldSlotHighlight != null)
+                fieldSlotHighlight.gameObject.SetActive(false);
+        }
+
+        void EnsureFieldSlotHighlight()
+        {
+            if (fieldSlotHighlight != null)
+                return;
+
+            var markerObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            markerObject.name = "FieldSlotHighlight";
+
+            var collider = markerObject.GetComponent<Collider>();
+            if (collider != null)
+                Destroy(collider);
+
+            markerObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            markerObject.transform.localScale = new Vector3(
+                CardLayout.Width(PlaymatZones.CardScale) * 1.05f,
+                CardLayout.Depth(PlaymatZones.CardScale) * 1.05f,
+                1f);
+
+            var renderer = markerObject.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                var material = new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color"));
+                material.color = FieldHighlightLegalColor;
+                renderer.sharedMaterial = material;
+            }
+
+            markerObject.SetActive(false);
+            fieldSlotHighlight = markerObject.transform;
+        }
+
+        static IEnumerator AnimateCardPlayedAwayRoutine(CardView card)
+        {
+            var animator = card.GetComponent<CardAnimator>();
+            if (animator != null)
+                yield return animator.AnimateToRoutine(card.transform.position, card.CardScale * 0.05f, 0.2f, card.transform.rotation);
+
+            Destroy(card.gameObject);
         }
 
         int GetInsertIndexFromPosition(Vector3 worldPosition)

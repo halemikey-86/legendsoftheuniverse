@@ -109,10 +109,13 @@ namespace Willbound.Table
             matchTableEnabled = true;
             ResolveReferences();
 
-            for (var i = 0; i < hideAfterMatch.Length; i++)
+            if (hideAfterMatch != null)
             {
-                if (hideAfterMatch[i] != null)
-                    hideAfterMatch[i].SetActive(false);
+                for (var i = 0; i < hideAfterMatch.Length; i++)
+                {
+                    if (hideAfterMatch[i] != null)
+                        hideAfterMatch[i].SetActive(false);
+                }
             }
 
             binder?.RefreshSnapshot();
@@ -218,7 +221,7 @@ namespace Willbound.Table
                 if (obj.StackId != stackId)
                     continue;
 
-                if (obj.PaidWill > 0 && binder.TryGetCardView(obj.SourceInstanceId, out var view))
+                if (obj.PaidWill > 0 && obj.SourceInstanceId is int refundSourceInstanceId && binder.TryGetCardView(refundSourceInstanceId, out var view))
                     willPoolView?.PlayWillRefund(obj.PaidWill, view.transform.position);
                 break;
             }
@@ -236,7 +239,7 @@ namespace Willbound.Table
                 if (obj.StackId != stackId || obj.Type != StackObjectType.PlayCard || obj.PaidWill <= 0)
                     continue;
 
-                if (binder != null && binder.TryGetCardView(obj.SourceInstanceId, out var view))
+                if (binder != null && obj.SourceInstanceId is int paymentSourceInstanceId && binder.TryGetCardView(paymentSourceInstanceId, out var view))
                     willPoolView?.PlayWillPayment(obj.PaidWill, view.transform.position);
                 break;
             }

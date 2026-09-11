@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation.EngineBridge;
+using LegendsOfTheUniverse.Presentation.Menu;
 using LegendsOfTheUniverse.Rules;
 using Willbound.Table;
 using UnityEngine;
@@ -137,6 +138,7 @@ namespace LegendsOfTheUniverse.Presentation
             storeActions.Init(handView, storeView, matchBridge);
             handView?.BindStoreActions(storeActions);
             handView?.BindStoreView(storeView);
+            handView?.BindMatchBridge(matchBridge);
             storeView?.BindStoreActions(storeActions);
             storeView?.BindHandView(handView);
 
@@ -324,19 +326,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (handView == null)
                 yield break;
 
-            SetPickPrompt("Choose your card back", true);
-
-            if (cardBackPickView != null)
-                yield return cardBackPickView.RunPickRoutine();
-
-            SetPickPrompt(null, false);
-
-            if (cardBackPickView != null && cardBackPickView.HasSelected)
-                CardDeck.SetSelectedCardBack(cardBackPickView.SelectedBack);
-            else
-                CardDeck.SetSelectedCardBack(CardCatalog.GetDefaultCardBack());
-
-            cardBackPickView?.ClearPickCards();
+            CardDeck.SetSelectedCardBack(CardCatalog.GetCardBackByName(GameSettings.CardBackName));
 
             var deckPosition = GetDeckPosition();
             CardDeck.PrepareSetupPool();
@@ -409,19 +399,16 @@ namespace LegendsOfTheUniverse.Presentation
                 if (unpicked.Count > 0)
                     yield return ReturnUnpickedIconsToSupplyRoutine(unpicked, GetSupplyPosition());
 
-                SetPickPrompt("Round begins — market opens", true);
-
                 supplyDeckView?.SetStackVisible(true);
                 supplyDeckView?.Refresh();
-
-                if (storeView != null)
-                    yield return storeView.BeginRoundRoutine(GetSupplyPosition());
-
-                SetPickPrompt(null, false);
             }
 
             matchStarted = true;
             turnFlow?.BeginMatchAfterSetup();
+
+            if (matchBridge != null && matchBridge.IsActive)
+                handView?.SyncHandFromEngine(matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId).Hand);
+
             tableRoot?.EnableMatchTable();
             SetStoreButtonsVisible(true);
             UpdateTurnButtons();
@@ -477,8 +464,23 @@ namespace LegendsOfTheUniverse.Presentation
 
         void OnRiverToggleClicked()
         {
+            if (storeView == null)
+                return;
+
+            if (!storeView.RoundStarted)
+            {
+                StartCoroutine(OpenStoreRoutine());
+                return;
+            }
+
             var hideButton = listViewButton != null ? listViewButton.GetComponent<RectTransform>() : null;
-            storeView?.ToggleRiverCollapse(GetSupplyPosition(), hideButton);
+            storeView.ToggleRiverCollapse(GetSupplyPosition(), hideButton);
+            UpdateRiverToggleButtonIcon();
+        }
+
+        IEnumerator OpenStoreRoutine()
+        {
+            yield return storeView.BeginRoundRoutine(GetSupplyPosition());
             UpdateRiverToggleButtonIcon();
         }
 
