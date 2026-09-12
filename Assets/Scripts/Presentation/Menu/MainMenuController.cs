@@ -56,7 +56,7 @@ namespace LegendsOfTheUniverse.Presentation.Menu
         {
             var screen = MenuUiBuilder.CreatePanel("StartGameScreen", parent, Vector2.zero, Vector2.one);
             MenuUiBuilder.CreateTitle(screen.transform, "Start Game", 48f);
-            MenuUiBuilder.CreateMenuButton(screen.transform, "Solo", 0.52f, StartSoloGame);
+            MenuUiBuilder.CreateMenuButton(screen.transform, "Bot Match", 0.52f, StartBotMatch);
             MenuUiBuilder.CreateMenuButton(screen.transform, "Multiplayer (Locked)", 0.42f, () => { }, interactable: false);
             MenuUiBuilder.CreateMenuButton(screen.transform, "Back", 0.22f, ShowMainScreen);
             return screen;
@@ -275,8 +275,9 @@ namespace LegendsOfTheUniverse.Presentation.Menu
                 screen.SetActive(active);
         }
 
-        void StartSoloGame()
+        void StartBotMatch()
         {
+            MatchLaunch.Mode = MatchMode.Bot;
             SceneManager.LoadScene(MenuSceneNames.Game);
         }
 

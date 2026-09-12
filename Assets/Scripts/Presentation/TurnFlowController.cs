@@ -6,7 +6,7 @@ using UnityEngine;
 namespace LegendsOfTheUniverse.Presentation
 {
     /// <summary>
-    /// Solo turn loop: delegates to Engine B when <see cref="TableMatchBridge"/> is active,
+    /// Turn loop: delegates to Engine B when <see cref="TableMatchBridge"/> is active,
     /// otherwise runs the legacy local phase machine.
     /// </summary>
     [DisallowMultipleComponent]
@@ -68,7 +68,7 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (matchBridge != null)
             {
-                matchBridge.BeginSoloMatch();
+                matchBridge.BeginMatch();
                 UpdatePhaseState();
                 return;
             }
@@ -143,7 +143,7 @@ namespace LegendsOfTheUniverse.Presentation
                     return;
                 }
 
-                if (!matchBridge.TryPassPriority(out var error))
+                if (!matchBridge.TryResolveClash(out var error))
                 {
                     if (!string.IsNullOrEmpty(error))
                         setPrompt?.Invoke(error, true);
@@ -175,7 +175,7 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (UseEngine)
             {
-                if (!matchBridge.TryPassPriority(out var error) && !string.IsNullOrEmpty(error))
+                if (!matchBridge.TryResolveClash(out var error) && !string.IsNullOrEmpty(error))
                     setPrompt?.Invoke(error, true);
                 UpdatePhaseState();
                 return;
@@ -204,19 +204,31 @@ namespace LegendsOfTheUniverse.Presentation
 
             var prompt = discardPending
                 ? $"Discard down to {GameConstants.MaxHandSize} cards ({handView?.HandCount ?? 0} in hand)"
-                : currentStep switch
-                {
-                    TurnStep.WillSite =>
-                        $"Round {Round} — Will {WillPool}. Will site step (optional), then continue.",
-                    TurnStep.Main =>
-                        $"Round {Round} — Will {WillPool}. Main phase — play cards and use the store.",
-                    TurnStep.Clash =>
-                        $"Round {Round} — Will {WillPool}. Clash phase — Press or Hold, then End Turn.",
-                    _ => null,
-                };
+                : BuildPrompt(currentStep);
 
             setPrompt?.Invoke(prompt, !string.IsNullOrEmpty(prompt));
             PhaseStateChanged?.Invoke(currentStep, discardPending);
+        }
+
+        string BuildPrompt(TurnStep currentStep)
+        {
+            if (UseEngine && matchBridge.IsBotMatch && !matchBridge.IsLocalActivePlayer)
+            {
+                return matchBridge.HasLocalPriority
+                    ? $"Round {Round} — opponent's turn. Respond or Pass (Space)."
+                    : $"Round {Round} — opponent is acting.";
+            }
+
+            return currentStep switch
+            {
+                TurnStep.WillSite =>
+                    $"Round {Round} — Will {WillPool}. Play one free Will Site to the left Willwell (optional), then continue.",
+                TurnStep.Main =>
+                    $"Round {Round} — Will {WillPool}. Main phase — play cards and use the store. Willwell statics are on.",
+                TurnStep.Clash =>
+                    $"Round {Round} — Will {WillPool}. Click or drag a glowing Field body to Press their Icon. End Turn if anything is still untapped.",
+                _ => null,
+            };
         }
 
         public event Action<TurnStep, bool> PhaseStateChanged;

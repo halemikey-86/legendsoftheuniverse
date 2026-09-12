@@ -24,6 +24,7 @@ namespace Willbound.Table
         [Header("Presentation")]
         [SerializeField] PlaymatZonesView playmatZones;
         [SerializeField] HandView handView;
+        [SerializeField] IconSlotView iconSlotView;
         [SerializeField] LegendsOfTheUniverse.Presentation.CardView cardPrefab;
         [SerializeField] Transform engineHandRoot;
         [SerializeField] Camera tableCamera;
@@ -36,6 +37,14 @@ namespace Willbound.Table
         Transform dropZonesRoot;
         Transform engineFieldRoot;
         bool matchTableEnabled;
+        IconLifeView localIconLife;
+        IconLifeView opponentIconLife;
+        WorldAnchoredUi clashScoreUi;
+        Transform clashScoreAnchor;
+        int localIconInstanceId = -1;
+        int opponentIconInstanceId = -1;
+        int damageToLocalIconThisClash;
+        int damageToEnemyIconThisClash;
 
         public bool IsMatchTableEnabled => matchTableEnabled;
 
@@ -77,6 +86,8 @@ namespace Willbound.Table
                 playmatZones = GetComponent<PlaymatZonesView>();
             if (handView == null)
                 handView = GetComponent<HandView>();
+            if (iconSlotView == null)
+                iconSlotView = FindAnyObjectByType<IconSlotView>();
             if (cardPrefab == null && handView != null)
                 cardPrefab = handView.CardPrefab;
             if (tableCamera == null)
@@ -134,8 +145,8 @@ namespace Willbound.Table
                 dropZonesRoot.SetParent(transform, false);
             }
 
-            CreateZone("FieldDrop", TableZoneKind.Field, PlaymatZones.FieldCenter, new Vector3(6f, 0.2f, 8f));
-            CreateZone("WillwellDrop", TableZoneKind.Willwell, PlaymatZones.Willwell, new Vector3(3f, 0.2f, 3f));
+            CreateZone("FieldDrop", TableZoneKind.Field, PlaymatZones.FieldCenter, new Vector3(16f, 0.5f, 14f));
+            CreateZone("WillwellDrop", TableZoneKind.Willwell, PlaymatZones.Willwell, new Vector3(4f, 0.4f, 8f));
             CreateZone("StackWellDrop", TableZoneKind.StackWell, PlaymatZones.StackWell, new Vector3(2.5f, 0.2f, 2.5f));
             CreateZone("HoldPlateDrop", TableZoneKind.HoldPlate, PlaymatZones.HoldPlate, new Vector3(2.5f, 0.2f, 2.5f));
             CreateZone("HandWellDrop", TableZoneKind.Hand, PlaymatZones.HandCenter, new Vector3(8f, 0.2f, 3f));
@@ -162,9 +173,12 @@ namespace Willbound.Table
             binder?.RefreshSnapshot();
             SyncEngineHandViews();
             SyncEngineFieldViews();
+            RefreshIconLifeFromMatch();
 
             for (var i = 0; i < events.Count; i++)
                 HandleCinemaEvent(events[i]);
+
+            RefreshIconLifeFromMatch();
         }
 
         void HandleCinemaEvent(GameEvent e)
@@ -195,9 +209,20 @@ namespace Willbound.Table
                 case EventKind.HealthChanged:
                     if (TryInt(e, "instanceId", out var healthId)
                         && TryInt(e, "current", out var current)
-                        && TryInt(e, "printed", out var printed)
-                        && binder.TryGetCardView(healthId, out var healthView))
-                        healthView.SetHealth(current, printed);
+                        && TryInt(e, "printed", out var printed))
+                    {
+                        if (binder.TryGetCardView(healthId, out var healthView))
+                            healthView.SetHealth(current, printed);
+                        ApplyIconHealth(healthId, current, printed);
+                    }
+                    break;
+                case EventKind.DamageDealt:
+                    HandleDamageDealt(e);
+                    break;
+                case EventKind.PhaseChanged:
+                    if (e.Data != null && e.Data.TryGetValue("clashPhase", out var clashRaw)
+                        && clashRaw != null && clashRaw.ToString().Contains("C1"))
+                        ResetClashDamage();
                     break;
                 case EventKind.Silenced:
                     HandleSilenceRefund(e);
@@ -256,6 +281,9 @@ namespace Willbound.Table
             for (var i = 0; i < snap.LocalHand.Count; i++)
             {
                 var card = snap.LocalHand[i];
+                if (handView != null && handView.OwnsInstance(card.InstanceId))
+                    continue;
+
                 seen.Add(card.InstanceId);
 
                 if (!engineHandCards.TryGetValue(card.InstanceId, out var view) || view == null)
@@ -276,6 +304,8 @@ namespace Willbound.Table
                 view.SetExhausted(card.Exhausted);
                 view.SetHealth(card.CurrentHealth, card.Health);
                 view.RememberHome();
+                view.Presentation?.SetPlayableOutline(
+                    matchBridge != null && matchBridge.CanPlayCard(card.InstanceId));
             }
 
             var remove = new List<int>();
@@ -308,36 +338,56 @@ namespace Willbound.Table
             }
 
             var snap = binder.Snapshot;
-            var allField = new List<CardSnapshot>(snap.LocalField);
-            for (var i = 0; i < snap.OpponentField.Count; i++)
-                allField.Add(snap.OpponentField[i]);
+            var allField = new List<CardSnapshot>();
+            AddUniqueFieldCards(allField, snap.LocalField);
+            AddUniqueFieldCards(allField, snap.OpponentField);
+            AddUniqueFieldCards(allField, snap.LocalWillwell);
+            AddUniqueFieldCards(allField, snap.OpponentWillwell);
 
             var seen = new HashSet<int>();
+            var localSlot = 0;
+            var opponentSlot = 0;
+            var localWell = 0;
+            var opponentWell = 0;
+            var declare = snap.ClashPhase == ClashPhase.C1_ActiveDeclare;
+
             for (var i = 0; i < allField.Count; i++)
             {
                 var card = allField[i];
                 seen.Add(card.InstanceId);
 
-                if (!engineFieldCards.TryGetValue(card.InstanceId, out var view) || view == null)
+                var isLocal = card.ControllerId == snap.LocalPlayerId;
+                var view = BindOrSpawnFieldCard(card, isLocal);
+                if (view == null)
+                    continue;
+
+                Vector3 pos;
+                if (card.Type == CardType.Icon)
+                    pos = isLocal ? PlaymatZones.Icon : PlaymatZones.OpponentIcon;
+                else if (card.Type == CardType.WillSite)
+                    pos = isLocal ? PlaymatZones.GetWillwellSlot(localWell++) : PlaymatZones.GetOpponentWillwellSlot(opponentWell++);
+                else
+                    pos = isLocal ? PlaymatZones.GetFieldSlot(localSlot++) : PlaymatZones.GetOpponentFieldSlot(opponentSlot++);
+
+                var skipMove = view.IsDragging
+                    || (isLocal && card.Type == CardType.Icon && iconSlotView != null && iconSlotView.HasInspectSelection);
+                if (!skipMove)
                 {
-                    var shell = Instantiate(cardPrefab, engineFieldRoot);
-                    shell.name = $"EngineField_{card.InstanceId}";
-                    view = shell.gameObject.GetComponent<Willbound.Table.CardView>()
-                        ?? shell.gameObject.AddComponent<Willbound.Table.CardView>();
-                    engineFieldCards[card.InstanceId] = view;
-                    binder.RegisterCardView(card.InstanceId, view);
+                    view.transform.position = pos;
+                    view.transform.rotation = LegendsOfTheUniverse.Presentation.CardView.TableRotation;
+                    view.SetExhausted(card.Exhausted);
+                    view.RememberHome();
                 }
 
-                var slotIndex = i % PlaymatZones.FieldSlotCount;
-                var pos = PlaymatZones.GetFieldSlot(slotIndex);
-                if (card.ControllerId != snap.LocalPlayerId)
-                    pos.z = PlaymatZones.FieldCenter.z + 4.5f + (slotIndex * PlaymatZones.FieldSlotSpacing);
-
-                view.transform.position = pos;
-                view.transform.rotation = LegendsOfTheUniverse.Presentation.CardView.TableRotation;
-                view.SetExhausted(card.Exhausted);
                 view.SetHealth(card.CurrentHealth, card.Health);
-                view.RememberHome();
+                if (card.Type == CardType.Icon)
+                    BindIconLife(card, view, isLocal);
+
+                var canDeclare = declare && isLocal && binder.IsBodyInDeclareQueue(card.InstanceId);
+                var isPressTarget = declare && !isLocal
+                    && card.Type is CardType.Icon or CardType.Companion or CardType.Token;
+                view.Presentation?.SetPlayableOutline(canDeclare || isPressTarget);
+                view.Presentation?.SetClickable(true);
             }
 
             var remove = new List<int>();
@@ -345,7 +395,7 @@ namespace Willbound.Table
             {
                 if (!seen.Contains(pair.Key))
                 {
-                    if (pair.Value != null)
+                    if (pair.Value != null && (iconSlotView == null || pair.Value.Presentation != iconSlotView.IconCard))
                         Destroy(pair.Value.gameObject);
                     remove.Add(pair.Key);
                 }
@@ -353,6 +403,234 @@ namespace Willbound.Table
 
             for (var i = 0; i < remove.Count; i++)
                 engineFieldCards.Remove(remove[i]);
+        }
+
+        static void AddUniqueFieldCards(List<CardSnapshot> dest, IReadOnlyList<CardSnapshot> source)
+        {
+            if (source == null)
+                return;
+
+            for (var i = 0; i < source.Count; i++)
+            {
+                var card = source[i];
+                if (card == null)
+                    continue;
+
+                var exists = false;
+                for (var j = 0; j < dest.Count; j++)
+                {
+                    if (dest[j].InstanceId == card.InstanceId)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                    dest.Add(card);
+            }
+        }
+
+        Willbound.Table.CardView BindOrSpawnFieldCard(CardSnapshot card, bool isLocal)
+        {
+            if (engineFieldCards.TryGetValue(card.InstanceId, out var existing) && existing != null)
+                return existing;
+
+            if (isLocal && card.Type == CardType.Icon && iconSlotView != null && iconSlotView.IconCard != null)
+            {
+                var localIcon = iconSlotView.IconCard.GetComponent<Willbound.Table.CardView>()
+                    ?? iconSlotView.IconCard.gameObject.AddComponent<Willbound.Table.CardView>();
+                engineFieldCards[card.InstanceId] = localIcon;
+                binder.RegisterCardView(card.InstanceId, localIcon);
+                iconSlotView.IconCard.SetEngineCardInstanceId(card.InstanceId);
+                iconSlotView.IconCard.SetClickable(true);
+                return localIcon;
+            }
+
+            if (TryAdoptPresentationCard(card.InstanceId, out var adopted) && adopted != null)
+                return adopted;
+
+            var shell = Instantiate(cardPrefab, engineFieldRoot);
+            shell.name = card.Type == CardType.Icon
+                ? (isLocal ? "LocalIcon" : "OpponentIcon")
+                : $"EngineField_{card.InstanceId}";
+            var view = shell.gameObject.GetComponent<Willbound.Table.CardView>()
+                ?? shell.gameObject.AddComponent<Willbound.Table.CardView>();
+            engineFieldCards[card.InstanceId] = view;
+            binder.RegisterCardView(card.InstanceId, view);
+
+            ApplyFieldCardArt(shell, card);
+            shell.SetFaceUpImmediate(true);
+            shell.SetClickable(true);
+            return view;
+        }
+
+        bool TryAdoptPresentationCard(int instanceId, out Willbound.Table.CardView adopted)
+        {
+            adopted = null;
+            LegendsOfTheUniverse.Presentation.CardView played = null;
+            if (handView == null || !handView.TryTakeLeavingCard(instanceId, out played) || played == null)
+            {
+                var all = FindObjectsByType<LegendsOfTheUniverse.Presentation.CardView>();
+                for (var i = 0; i < all.Length; i++)
+                {
+                    if (all[i] != null && all[i].EngineCardInstanceId == instanceId)
+                    {
+                        played = all[i];
+                        break;
+                    }
+                }
+            }
+
+            if (played == null)
+                return false;
+
+            played.transform.SetParent(engineFieldRoot, true);
+            adopted = played.GetComponent<Willbound.Table.CardView>()
+                ?? played.gameObject.AddComponent<Willbound.Table.CardView>();
+            engineFieldCards[instanceId] = adopted;
+            binder.RegisterCardView(instanceId, adopted);
+            played.SetEngineCardInstanceId(instanceId);
+            played.SetClickable(true);
+            played.SetFaceUpImmediate(true);
+            var clickHandler = played.GetComponent<CardClickHandler>();
+            if (clickHandler != null)
+                Destroy(clickHandler);
+            return true;
+        }
+
+        void BindIconLife(CardSnapshot card, Willbound.Table.CardView view, bool isLocal)
+        {
+            var life = view.GetComponent<IconLifeView>() ?? view.gameObject.AddComponent<IconLifeView>();
+            life.Configure(view.transform, isLocal ? "Your Icon" : "Enemy Icon");
+            life.SetHealth(card.CurrentHealth, card.Health);
+            if (isLocal)
+            {
+                localIconLife = life;
+                localIconInstanceId = card.InstanceId;
+                life.SetClashTaken(damageToLocalIconThisClash);
+            }
+            else
+            {
+                opponentIconLife = life;
+                opponentIconInstanceId = card.InstanceId;
+                life.SetClashTaken(damageToEnemyIconThisClash);
+            }
+
+            EnsureClashScoreUi();
+        }
+
+        void EnsureClashScoreUi()
+        {
+            if (clashScoreAnchor == null)
+            {
+                var go = new GameObject("ClashScoreAnchor");
+                go.transform.SetParent(transform, false);
+                go.transform.position = PlaymatZones.FieldCenter + new Vector3(0f, 0.25f, 0f);
+                clashScoreAnchor = go.transform;
+            }
+
+            if (clashScoreUi == null)
+            {
+                clashScoreUi = WorldAnchoredUi.CreateLabeled(
+                    clashScoreAnchor,
+                    "Clash damage to Icons",
+                    "You deal  ·  they deal",
+                    new Vector3(0f, 0.35f, 0f),
+                    new Vector2(320f, 96f),
+                    26);
+            }
+
+            RefreshClashScore();
+        }
+
+        void RefreshClashScore()
+        {
+            if (clashScoreUi == null)
+                return;
+
+            clashScoreUi.Value = $"{damageToEnemyIconThisClash}  →  {damageToLocalIconThisClash}";
+            clashScoreUi.Subtitle = "You deal  ·  they deal";
+        }
+
+        void ResetClashDamage()
+        {
+            damageToLocalIconThisClash = 0;
+            damageToEnemyIconThisClash = 0;
+            localIconLife?.ClearClash();
+            opponentIconLife?.ClearClash();
+            RefreshClashScore();
+        }
+
+        void HandleDamageDealt(GameEvent e)
+        {
+            if (!TryInt(e, "target", out var targetId) || !TryInt(e, "amount", out var amount) || amount <= 0)
+                return;
+            if (matchBridge == null || !matchBridge.IsActive)
+                return;
+
+            var target = matchBridge.Runner.Match.GetCard(targetId);
+            if (target?.Printing == null || target.Printing.Type != CardType.Icon)
+                return;
+
+            if (targetId == localIconInstanceId || target.ControllerId == matchBridge.LocalPlayerId)
+            {
+                damageToLocalIconThisClash += amount;
+                localIconLife?.SetClashTaken(damageToLocalIconThisClash);
+                localIconLife?.SetHealth(target.CurrentHealth, target.Health);
+            }
+            else
+            {
+                damageToEnemyIconThisClash += amount;
+                opponentIconLife?.SetClashTaken(damageToEnemyIconThisClash);
+                opponentIconLife?.SetHealth(target.CurrentHealth, target.Health);
+            }
+
+            RefreshClashScore();
+        }
+
+        void ApplyIconHealth(int instanceId, int current, int printed)
+        {
+            if (instanceId == localIconInstanceId)
+                localIconLife?.SetHealth(current, printed);
+            else if (instanceId == opponentIconInstanceId)
+                opponentIconLife?.SetHealth(current, printed);
+        }
+
+        void RefreshIconLifeFromMatch()
+        {
+            if (matchBridge == null || !matchBridge.IsActive)
+                return;
+
+            var match = matchBridge.Runner.Match;
+            var local = match.GetPlayer(matchBridge.LocalPlayerId);
+            if (local?.Icon != null)
+            {
+                localIconInstanceId = local.Icon.InstanceId;
+                localIconLife?.SetHealth(local.Icon.CurrentHealth, local.Icon.Health);
+            }
+
+            var opponent = match.GetPlayer(matchBridge.LocalPlayerId == 0 ? 1 : 0);
+            if (opponent?.Icon != null)
+            {
+                opponentIconInstanceId = opponent.Icon.InstanceId;
+                opponentIconLife?.SetHealth(opponent.Icon.CurrentHealth, opponent.Icon.Health);
+            }
+        }
+
+        void ApplyFieldCardArt(LegendsOfTheUniverse.Presentation.CardView shell, CardSnapshot card)
+        {
+            CardPrinting printing = null;
+            if (matchBridge != null && matchBridge.IsActive)
+                printing = matchBridge.Runner.Match.GetCard(card.InstanceId)?.Printing;
+
+            if (printing != null)
+            {
+                shell.BindPrinting(printing);
+                var art = EngineCatalog.GetCardArt(printing);
+                if (art != null)
+                    shell.SetFrontTexture(art);
+            }
         }
 
         static Vector3 HandSlotPosition(int index, int count)

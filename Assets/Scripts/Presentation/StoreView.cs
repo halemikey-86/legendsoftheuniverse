@@ -88,6 +88,7 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void ClearStoreRuntime()
         {
+            HoverTooltipView.Hide();
             isRiverCollapsed = false;
             RoundStarted = false;
             ClearAllHoverAnimations();
@@ -173,6 +174,8 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void HandleCardHoverEnter(CardView card)
         {
+            HoverTooltipView.ShowCard(card);
+
             if (!CanInteractCards || !storeCards.Contains(card) || selectedCard != null)
                 return;
 
@@ -190,6 +193,8 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void HandleCardHoverExit(CardView card)
         {
+            HoverTooltipView.Hide();
+
             if (selectedCard == card)
                 return;
 

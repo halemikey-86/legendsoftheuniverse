@@ -1,5 +1,7 @@
 using System.Collections;
+using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
+using Willbound.Engine;
 
 namespace LegendsOfTheUniverse.Presentation
 {
@@ -62,6 +64,9 @@ namespace LegendsOfTheUniverse.Presentation
             if (iconCard == null || card != iconCard)
                 return;
 
+            if (IsClashDeclare())
+                return;
+
             if (inspecting)
             {
                 ClearInspectSelection();
@@ -114,6 +119,15 @@ namespace LegendsOfTheUniverse.Presentation
                 Destroy(iconCard.gameObject);
 
             iconCard = null;
+        }
+
+        static bool IsClashDeclare()
+        {
+            var bridge = FindAnyObjectByType<TableMatchBridge>();
+            if (bridge == null || !bridge.IsActive)
+                return false;
+            return bridge.Runner.Match.Phase == Phase.Clash
+                && bridge.Runner.Match.ClashPhase == ClashPhase.C1_ActiveDeclare;
         }
     }
 }

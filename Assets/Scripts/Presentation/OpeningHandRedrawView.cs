@@ -131,6 +131,7 @@ namespace LegendsOfTheUniverse.Presentation
             rect.sizeDelta = new Vector2(ButtonSize, ButtonSize);
 
             PositionButtonUnderCard(button, card);
+            HoverTooltipTrigger.Attach(buttonObject, "Redraw this card once");
             return button;
         }
 

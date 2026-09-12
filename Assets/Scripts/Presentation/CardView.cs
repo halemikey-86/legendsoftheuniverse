@@ -1,4 +1,6 @@
+using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
+using Willbound.Engine;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -11,6 +13,8 @@ namespace LegendsOfTheUniverse.Presentation
         const string DefaultBackTexturePath = "Assets/Cards/CardBacks/CardBack_OriginalDesign.png";
         const string DefaultBackMaterialPath = "Assets/Materials/CardBack.mat";
         const string DefaultFaceMaterialPath = "Assets/Materials/CardFace.mat";
+        const float PlayableGlowSpread = 0.32f;
+        const float PlayableGlowPulseSpeed = 2.6f;
 
         public static readonly Quaternion TableRotation = Quaternion.identity;
         public static readonly Quaternion PileRootRotation = Quaternion.Euler(0f, 180f, 0f);
@@ -33,12 +37,14 @@ namespace LegendsOfTheUniverse.Presentation
 
         [Header("Size")]
         [SerializeField] float cardScale = PlaymatZones.CardScale;
-        [SerializeField] float cardThickness = 0.012f;
         [SerializeField] bool faceUp;
 
         Material frontMaterialInstance;
         Material backMaterialInstance;
+        Material playableOutlineMaterial;
         BoxCollider clickCollider;
+        Transform playableOutline;
+        bool playableOutlineEnabled;
 
         public bool IsFaceUp => faceUp;
         public float CardScale => cardScale;
@@ -157,12 +163,13 @@ namespace LegendsOfTheUniverse.Presentation
                 ApplyCardScale(frontRenderer.transform);
             if (backRenderer != null)
                 ApplyCardScale(backRenderer.transform);
+            ApplyPlayableOutlineScale();
             UpdateClickCollider();
         }
 
         public Vector3 GetWorldSize()
         {
-            return new Vector3(cardScale, 0.1f, cardScale * 1.397f);
+            return new Vector3(cardScale, 0.4f, cardScale * 1.397f);
         }
 
         public void SetClickable(bool clickable)
@@ -174,9 +181,16 @@ namespace LegendsOfTheUniverse.Presentation
         /// <summary>Non-null when this card represents a real Willbound.Engine.CardInstance in a player's hand.</summary>
         public int? EngineCardInstanceId { get; private set; }
 
+        public CardPrinting BoundPrinting { get; private set; }
+
         public void SetEngineCardInstanceId(int? instanceId)
         {
             EngineCardInstanceId = instanceId;
+        }
+
+        public void BindPrinting(CardPrinting printing)
+        {
+            BoundPrinting = printing;
         }
 
         void EnsureClickCollider()
@@ -198,12 +212,13 @@ namespace LegendsOfTheUniverse.Presentation
 
             var size = GetWorldSize();
             clickCollider.size = size;
-            clickCollider.center = new Vector3(0f, 0.05f, 0f);
+            clickCollider.center = new Vector3(0f, 0.15f, 0f);
         }
 
         public void SetFrontTexture(Texture2D texture)
         {
             frontTexture = texture;
+            BoundPrinting = EngineCatalog.TryGetPrintingByArt(texture, out var printing) ? printing : null;
             ApplyMaterials();
         }
 
@@ -220,6 +235,15 @@ namespace LegendsOfTheUniverse.Presentation
             this.faceUp = faceUp;
             if (shell != null)
                 shell.localRotation = faceUp ? FaceUpShellRotation : FaceDownShellRotation;
+            RefreshPlayableOutlineVisibility();
+        }
+
+        /// <summary>Soft white glow around a face-up hand card that can currently be played.</summary>
+        public void SetPlayableOutline(bool enabled)
+        {
+            playableOutlineEnabled = enabled;
+            EnsurePlayableOutline();
+            RefreshPlayableOutlineVisibility();
         }
 
         public Transform Shell => shell;
@@ -250,6 +274,94 @@ namespace LegendsOfTheUniverse.Presentation
             TablePresentation.EnsureRendererVisible(frontRenderer);
         }
 
+        void EnsurePlayableOutline()
+        {
+            if (!Application.isPlaying || shell == null)
+                return;
+
+            if (playableOutline == null)
+            {
+                var existing = shell.Find("PlayableGlow") ?? shell.Find("PlayableOutline");
+                if (existing != null)
+                    playableOutline = existing;
+            }
+
+            if (playableOutline == null)
+            {
+                var outlineObject = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                outlineObject.name = "PlayableGlow";
+                outlineObject.SetActive(false);
+                outlineObject.transform.SetParent(shell, false);
+                outlineObject.transform.localPosition = new Vector3(0f, -0.0012f, 0f);
+                outlineObject.transform.localRotation = FrontFaceRotation;
+
+                var collider = outlineObject.GetComponent<Collider>();
+                if (collider != null)
+                    collider.enabled = false;
+
+                playableOutline = outlineObject.transform;
+            }
+
+            var outlineRenderer = playableOutline.GetComponent<Renderer>();
+            if (outlineRenderer != null)
+            {
+                if (playableOutlineMaterial == null)
+                {
+                    var shader = Shader.Find("Universal Render Pipeline/Unlit")
+                        ?? Shader.Find("Unlit/Transparent")
+                        ?? Shader.Find("Unlit/Color");
+                    playableOutlineMaterial = shader != null
+                        ? new Material(shader)
+                        : new Material(outlineRenderer.sharedMaterial);
+                    TablePresentation.ConfigurePlayableGlowMaterial(
+                        playableOutlineMaterial,
+                        TablePresentation.PlayableGlowTexture());
+                }
+
+                outlineRenderer.sharedMaterial = playableOutlineMaterial;
+                TablePresentation.EnsureRendererVisible(outlineRenderer);
+            }
+
+            ApplyPlayableOutlineScale();
+            RefreshPlayableOutlineVisibility();
+        }
+
+        void ApplyPlayableOutlineScale()
+        {
+            if (playableOutline == null)
+                return;
+
+            var width = (cardScale + PlayableGlowSpread * 2f) / 10f;
+            var depth = (cardScale * 1.397f + PlayableGlowSpread * 2f) / 10f;
+            playableOutline.localScale = new Vector3(width, 1f, depth);
+        }
+
+        void Update()
+        {
+            if (!playableOutlineEnabled || playableOutlineMaterial == null)
+                return;
+
+            var pulse = 1.22f + 0.28f * (0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * PlayableGlowPulseSpeed));
+            var color = new Color(pulse, pulse, pulse, 1f);
+            playableOutlineMaterial.color = color;
+            if (playableOutlineMaterial.HasProperty("_BaseColor"))
+                playableOutlineMaterial.SetColor("_BaseColor", color);
+            if (playableOutlineMaterial.HasProperty("_Color"))
+                playableOutlineMaterial.SetColor("_Color", color);
+        }
+
+        void RefreshPlayableOutlineVisibility()
+        {
+            if (playableOutline != null)
+                playableOutline.gameObject.SetActive(playableOutlineEnabled && faceUp);
+        }
+
+        void OnDestroy()
+        {
+            if (playableOutlineMaterial != null)
+                Destroy(playableOutlineMaterial);
+        }
+
 #if UNITY_EDITOR
         void OnValidate()
         {
@@ -271,6 +383,7 @@ namespace LegendsOfTheUniverse.Presentation
                 backRenderer.transform.localRotation = BackFaceRotation;
                 ApplyCardScale(backRenderer.transform);
             }
+            ApplyPlayableOutlineScale();
             ApplyMaterials();
             SetFaceUpImmediate(faceUp);
         }

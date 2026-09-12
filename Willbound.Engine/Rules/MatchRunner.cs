@@ -49,6 +49,22 @@ namespace Willbound.Engine
             }
         }
 
+        /// <summary>True when this player currently has priority and can legally play the card from hand.</summary>
+        public bool CanPlay(int playerId, int cardInstanceId)
+        {
+            if (Match.WinnerId.HasValue)
+                return false;
+
+            var player = Match.GetPlayer(playerId);
+            if (player == null || player.Lost)
+                return false;
+
+            if (playerId != Match.PriorityPlayerId)
+                return false;
+
+            return ValidatePlayCard(player, cardInstanceId) == null;
+        }
+
         Match CloneMatchForFail() => Match;
 
         string ValidateAndApply(PlayerAction action)
@@ -422,7 +438,33 @@ namespace Willbound.Engine
 
         string PlayCard(Player player, PlayerAction action)
         {
+            var error = ValidatePlayCard(player, action.CardInstanceId ?? -1);
+            if (error != null)
+                return error;
+
             var card = Match.GetCard(action.CardInstanceId ?? -1);
+            player.Will -= card.Printing.WillCost;
+
+            var stackObj = new StackObject
+            {
+                StackId = Match.NextStack(),
+                Timestamp = Match.NextTs(),
+                Type = StackObjectType.PlayCard,
+                ControllerId = player.Id,
+                SourceInstanceId = card.InstanceId,
+                PrintingId = card.Printing.Id,
+                PaidWill = card.Printing.WillCost,
+            };
+            Match.Stack.Add(stackObj);
+            Emit(EventKind.StackPushed, "stackId", stackObj.StackId, "type", StackObjectType.PlayCard.ToString());
+            Match.Passed.Clear();
+            GivePriorityToNextLiving();
+            return null;
+        }
+
+        string ValidatePlayCard(Player player, int cardInstanceId)
+        {
+            var card = Match.GetCard(cardInstanceId);
             if (card == null || !player.Hand.Contains(card))
                 return "Card not in hand.";
 
@@ -452,22 +494,6 @@ namespace Willbound.Engine
             if (player.Will < card.Printing.WillCost)
                 return "Insufficient Will.";
 
-            player.Will -= card.Printing.WillCost;
-
-            var stackObj = new StackObject
-            {
-                StackId = Match.NextStack(),
-                Timestamp = Match.NextTs(),
-                Type = StackObjectType.PlayCard,
-                ControllerId = player.Id,
-                SourceInstanceId = card.InstanceId,
-                PrintingId = card.Printing.Id,
-                PaidWill = card.Printing.WillCost,
-            };
-            Match.Stack.Add(stackObj);
-            Emit(EventKind.StackPushed, "stackId", stackObj.StackId, "type", StackObjectType.PlayCard.ToString());
-            Match.Passed.Clear();
-            GivePriorityToNextLiving();
             return null;
         }
 

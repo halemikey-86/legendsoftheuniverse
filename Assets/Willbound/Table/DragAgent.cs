@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation;
 using UnityEngine;
+using Willbound.Engine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -34,7 +35,7 @@ namespace Willbound.Table
             if (tableCamera == null)
                 tableCamera = Camera.main;
 
-            zones.AddRange(FindObjectsByType<ZoneView>(FindObjectsSortMode.None));
+            zones.AddRange(FindObjectsByType<ZoneView>());
         }
 
         void Update()
@@ -90,13 +91,30 @@ namespace Willbound.Table
             string error = null;
             var dropZone = FindDropZone(draggingCard.transform.position);
 
-            int? targetId = null;
-            if (dropZone != null && dropZone.Kind == TableZoneKind.Field)
-                targetId = FindTargetInstanceId(draggingCard.transform.position);
+            var targetId = FindTargetInstanceId();
+            PlayerAction action = null;
 
-            if (dropZone != null && binder.IsLegalDrop(draggingInstanceId, dropZone.Kind, targetId))
+            if (binder.IsBodyInDeclareQueue(draggingInstanceId))
             {
-                var action = binder.BuildDropAction(draggingInstanceId, dropZone.Kind, targetId);
+                if (targetId.HasValue && binder.IsLegalPressTarget(draggingInstanceId, targetId.Value))
+                    action = binder.BuildDropAction(draggingInstanceId, TableZoneKind.Field, targetId);
+                else if (dropZone != null && dropZone.Kind == TableZoneKind.HoldPlate
+                    && binder.IsLegalDrop(draggingInstanceId, TableZoneKind.HoldPlate))
+                    action = binder.BuildDropAction(draggingInstanceId, TableZoneKind.HoldPlate);
+                else
+                {
+                    var fallback = binder.DefaultPressTargetId();
+                    if (fallback.HasValue)
+                        action = binder.BuildDropAction(draggingInstanceId, TableZoneKind.Field, fallback);
+                }
+            }
+            else if (dropZone != null && binder.IsLegalDrop(draggingInstanceId, dropZone.Kind, targetId))
+            {
+                action = binder.BuildDropAction(draggingInstanceId, dropZone.Kind, targetId);
+            }
+
+            if (action != null)
+            {
                 var result = actionHost.TryApply(action);
                 accepted = result.Success;
                 error = result.Error;
@@ -151,18 +169,44 @@ namespace Willbound.Table
                 return false;
 
             var ray = tableCamera.ScreenPointToRay(GetPointerScreenPosition());
-            if (!Physics.Raycast(ray, out var hit, pickRayDistance, cardLayerMask, QueryTriggerInteraction.Collide))
+            var hits = Physics.RaycastAll(ray, pickRayDistance, cardLayerMask, QueryTriggerInteraction.Collide);
+            if (hits == null || hits.Length == 0)
                 return false;
 
-            card = hit.collider.GetComponentInParent<CardView>();
-            if (card == null)
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            for (var i = 0; i < hits.Length; i++)
             {
-                var presentation = hit.collider.GetComponentInParent<LegendsOfTheUniverse.Presentation.CardView>();
-                if (presentation != null)
-                    card = presentation.GetComponent<CardView>();
+                card = CardFromHit(hits[i]);
+                if (card != null && card.InstanceId > 0)
+                    return true;
             }
 
-            return card != null;
+            card = null;
+            return false;
+        }
+
+        CardView CardFromHit(RaycastHit hit)
+        {
+            if (hit.collider == null)
+                return null;
+
+            var tableCard = hit.collider.GetComponentInParent<CardView>();
+            var presentation = hit.collider.GetComponentInParent<LegendsOfTheUniverse.Presentation.CardView>();
+            if (tableCard != null && tableCard.InstanceId > 0)
+                return tableCard;
+
+            if (presentation != null && presentation.EngineCardInstanceId is int id && id > 0)
+            {
+                var bound = tableCard != null
+                    ? tableCard
+                    : presentation.GetComponent<CardView>() ?? presentation.gameObject.AddComponent<CardView>();
+                if (binder != null)
+                    binder.RegisterCardView(id, bound);
+                presentation.SetClickable(true);
+                return bound;
+            }
+
+            return tableCard;
         }
 
         Vector3 ScreenToWorldOnTable(Vector2 screen)
@@ -190,17 +234,27 @@ namespace Willbound.Table
 #endif
         }
 
-        int? FindTargetInstanceId(Vector3 worldPoint)
+        int? FindTargetInstanceId()
         {
             if (tableCamera == null)
                 return null;
 
             var ray = tableCamera.ScreenPointToRay(GetPointerScreenPosition());
-            if (!Physics.Raycast(ray, out var hit, pickRayDistance, cardLayerMask, QueryTriggerInteraction.Collide))
+            var hits = Physics.RaycastAll(ray, pickRayDistance, cardLayerMask, QueryTriggerInteraction.Collide);
+            if (hits == null || hits.Length == 0)
                 return null;
 
-            var tableCard = hit.collider.GetComponentInParent<CardView>();
-            return tableCard != null && tableCard.InstanceId > 0 ? tableCard.InstanceId : null;
+            System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            for (var i = 0; i < hits.Length; i++)
+            {
+                var tableCard = CardFromHit(hits[i]);
+                if (tableCard == null || tableCard.InstanceId <= 0 || tableCard.InstanceId == draggingInstanceId)
+                    continue;
+
+                return tableCard.InstanceId;
+            }
+
+            return null;
         }
 
         static bool IsPrimaryHeld()
