@@ -17,7 +17,6 @@ namespace Willbound.Table
         const float GhostAlpha = 0.6f;
 
         [SerializeField] LegendsOfTheUniverse.Presentation.CardView presentation;
-        [SerializeField] float hoverLift = 0.003f;
 
         int instanceId = -1;
         bool exhausted;
@@ -137,12 +136,9 @@ namespace Willbound.Table
 
         void SetGhost(bool ghost)
         {
-            if (presentation == null)
-                return;
-
-            // Opacity via emission scale on table materials.
-            var scale = ghost ? GhostAlpha : 1f;
-            transform.localScale = Vector3.one * (presentation.CardScale * scale);
+            // Faces already carry CardScale. Do not rescale the root — that turned Icons sideways/huge.
+            _ = ghost;
+            _ = GhostAlpha;
         }
     }
 }

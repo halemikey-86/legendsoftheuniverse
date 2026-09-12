@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace LegendsOfTheUniverse.Presentation
 {
@@ -30,7 +31,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (mainCamera != null)
                 return ActivateCamera(mainCamera);
 
-            var cameras = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var cameras = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include);
             foreach (var camera in cameras)
             {
                 if (camera == null)
@@ -48,6 +49,8 @@ namespace LegendsOfTheUniverse.Presentation
             if (camera == null)
                 return;
 
+            EnsureUrpCamera(camera);
+
             if (camera.GetComponent<AudioListener>() == null)
                 camera.gameObject.AddComponent<AudioListener>();
 
@@ -58,6 +61,7 @@ namespace LegendsOfTheUniverse.Presentation
         {
             camera.gameObject.SetActive(true);
             camera.enabled = true;
+            EnsureUrpCamera(camera);
             return camera;
         }
 
@@ -74,13 +78,23 @@ namespace LegendsOfTheUniverse.Presentation
             camera.nearClipPlane = 0.3f;
             camera.farClipPlane = 1000f;
             camera.depth = -1;
+            EnsureUrpCamera(camera);
 
             return camera;
         }
 
+        static void EnsureUrpCamera(Camera camera)
+        {
+            if (camera == null)
+                return;
+
+            if (camera.GetComponent<UniversalAdditionalCameraData>() == null)
+                camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
+        }
+
         static void EnsureStandaloneListener()
         {
-            var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include);
             if (listeners.Length > 0)
             {
                 KeepOnly(listeners[0]);
@@ -98,7 +112,7 @@ namespace LegendsOfTheUniverse.Presentation
 
             activeListener.enabled = true;
 
-            var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var listeners = Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include);
             foreach (var listener in listeners)
             {
                 if (listener != null && listener != activeListener)

@@ -31,7 +31,7 @@ namespace LegendsOfTheUniverse.Presentation.Menu
 
         public static bool Fullscreen
         {
-            get => PlayerPrefs.GetInt(FullscreenKey, 1) == 1;
+            get => PlayerPrefs.GetInt(FullscreenKey, 0) == 1;
             set => PlayerPrefs.SetInt(FullscreenKey, value ? 1 : 0);
         }
 
@@ -52,7 +52,9 @@ namespace LegendsOfTheUniverse.Presentation.Menu
 
         public static void ApplyAll()
         {
+#if !UNITY_EDITOR
             Screen.fullScreen = Fullscreen;
+#endif
             QualitySettings.SetQualityLevel(QualityLevel, true);
             AudioListener.volume = MasterVolume;
             PlayerPrefs.Save();

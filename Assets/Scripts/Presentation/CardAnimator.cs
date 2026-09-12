@@ -50,6 +50,9 @@ namespace LegendsOfTheUniverse.Presentation
 
         public IEnumerator DealFaceDownRoutine(Vector3 start, Vector3 end, float duration, Action onComplete = null)
         {
+            if (this == null || cardView == null)
+                yield break;
+
             cardView.SetFaceUpImmediate(false);
             transform.position = start;
 
@@ -59,18 +62,27 @@ namespace LegendsOfTheUniverse.Presentation
                 elapsed += Time.deltaTime;
                 var t = Mathf.Clamp01(elapsed / duration);
                 var eased = Mathf.SmoothStep(0f, 1f, t);
+                if (this == null)
+                    yield break;
                 var position = Vector3.Lerp(start, end, eased);
                 position.y += dealArcHeight * Mathf.Sin(eased * Mathf.PI);
                 transform.position = position;
                 yield return null;
+                if (this == null)
+                    yield break;
             }
 
+            if (this == null)
+                yield break;
             transform.position = end;
             onComplete?.Invoke();
         }
 
         public IEnumerator FlipFaceUpRoutine(float duration, Action onComplete = null)
         {
+            if (this == null || cardView == null)
+                yield break;
+
             var shell = cardView.Shell;
             if (shell == null)
                 yield break;
@@ -84,10 +96,16 @@ namespace LegendsOfTheUniverse.Presentation
                 elapsed += Time.deltaTime;
                 var t = Mathf.Clamp01(elapsed / duration);
                 var eased = Mathf.SmoothStep(0f, 1f, t);
+                if (this == null || shell == null)
+                    yield break;
                 shell.localRotation = Quaternion.Slerp(from, to, eased);
                 yield return null;
+                if (this == null)
+                    yield break;
             }
 
+            if (this == null || cardView == null)
+                yield break;
             cardView.SetFaceUpImmediate(true);
             onComplete?.Invoke();
         }
@@ -108,6 +126,9 @@ namespace LegendsOfTheUniverse.Presentation
 
         public IEnumerator AnimateToRoutine(Vector3 targetPosition, float targetScale, float duration, Quaternion? targetRotation = null)
         {
+            if (this == null || cardView == null)
+                yield break;
+
             var startPosition = transform.position;
             var startRotation = transform.rotation;
             var endRotation = targetRotation ?? startRotation;
@@ -118,11 +139,16 @@ namespace LegendsOfTheUniverse.Presentation
             {
                 elapsed += Time.deltaTime;
                 var t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
+                if (this == null || cardView == null)
+                    yield break;
                 transform.position = Vector3.Lerp(startPosition, targetPosition, t);
                 transform.rotation = Quaternion.Slerp(startRotation, endRotation, t);
                 cardView.SetCardScale(Mathf.Lerp(startScale, targetScale, t));
                 yield return null;
             }
+
+            if (this == null || cardView == null)
+                yield break;
 
             transform.position = targetPosition;
             transform.rotation = endRotation;

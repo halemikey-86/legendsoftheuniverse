@@ -1,9 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using LegendsOfTheUniverse.Presentation.Menu;
 using LegendsOfTheUniverse.Rules;
 using UnityEngine;
 using Willbound.Engine;
 using GameEvent = Willbound.Engine.GameEvent;
+using CardInstance = Willbound.Engine.CardInstance;
 using StoreActionKind = Willbound.Engine.StoreActionKind;
 using CardType = Willbound.Engine.CardType;
 
@@ -17,6 +20,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
     public sealed class TableMatchBridge : MonoBehaviour, IMatchView
     {
         const int MaxAutoPasses = 24;
+        const int MaxBotActions = 64;
 
         [SerializeField] PlaymatZonesView playmatZones;
         [SerializeField] TurnFlowController turnFlow;
@@ -24,14 +28,23 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         [SerializeField] int rngSeed = 42;
         [SerializeField] string localIconPrintingId = "gk-01";
         [SerializeField] string opponentIconPrintingId = "gk-01";
+        [SerializeField] float botActionDelay = 0.4f;
 
         MatchRunner runner;
         InMemoryCardDatabase database;
         readonly Queue<GameEvent> eventQueue = new Queue<GameEvent>();
+        readonly HeuristicBot bot = new HeuristicBot();
+        Coroutine botRoutine;
+        bool botActing;
 
         public bool IsActive => runner != null;
         public MatchRunner Runner => runner;
         public int LocalPlayerId => localPlayerId;
+        public bool IsBotMatch => MatchLaunch.Mode == MatchMode.Bot;
+        public bool IsLocalActivePlayer =>
+            IsActive && runner.Match.ActivePlayerId == localPlayerId;
+        public bool HasLocalPriority =>
+            IsActive && runner.Match.PriorityPlayerId == localPlayerId && !botActing;
 
         public event Action<TurnStep, bool> PhaseStateChanged;
         public event Action<string> EngineError;
@@ -45,7 +58,20 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 turnFlow = GetComponent<TurnFlowController>();
         }
 
-        public void BeginSoloMatch()
+        void OnDestroy()
+        {
+            if (botRoutine != null)
+            {
+                StopCoroutine(botRoutine);
+                botRoutine = null;
+            }
+
+            botActing = false;
+        }
+
+        public void BeginSoloMatch() => BeginMatch();
+
+        public void BeginMatch()
         {
             try
             {
@@ -72,7 +98,10 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 runner = new MatchRunner(match, database, rng, this);
                 SyncHudFromEngine();
                 RaisePhaseChanged(false);
-                Debug.Log("[TableMatchBridge] Engine B match started.");
+                Debug.Log(IsBotMatch
+                    ? "[TableMatchBridge] Bot match started."
+                    : "[TableMatchBridge] Engine B match started.");
+                KickNonLocalActors();
             }
             catch (System.Exception ex)
             {
@@ -102,17 +131,18 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             if (!IsActive)
                 return ApplyResult.Fail("Engine not active.", null);
 
-            var result = ApplyWithAutoPass(action);
+            if (botActing && action.PlayerId == localPlayerId)
+                return ApplyResult.Fail("Opponent is acting.", runner.Match);
+
+            var result = ApplyThenAdvance(action);
             if (!result.Success)
             {
                 EngineError?.Invoke(result.Error);
                 return result;
             }
 
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
-            EngineEventsApplied?.Invoke(result.Events);
+            PublishResult(result);
+            KickNonLocalActors();
             return result;
         }
 
@@ -125,7 +155,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            var result = ApplyWithAutoPass(new PlayerAction
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
             {
                 Kind = PlayerActionKind.Pass,
                 PlayerId = localPlayerId,
@@ -138,10 +174,104 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
+            PublishResult(result);
+            KickNonLocalActors();
             return true;
+        }
+
+        public bool TryResolveClash(out string error)
+        {
+            error = null;
+            if (!IsActive)
+            {
+                error = "Engine not active.";
+                return false;
+            }
+
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var match = runner.Match;
+            if (match.Phase == Phase.Clash && match.ClashPhase == ClashPhase.C1_ActiveDeclare)
+            {
+                var leftover = new List<int>(match.BodiesAwaitingDeclare);
+                for (var i = 0; i < leftover.Count; i++)
+                {
+                    var hold = runner.Apply(new PlayerAction
+                    {
+                        Kind = PlayerActionKind.DeclareHold,
+                        PlayerId = localPlayerId,
+                        CardInstanceId = leftover[i],
+                    });
+                    if (hold.Success)
+                        PublishResult(hold);
+                }
+            }
+
+            return TryPassPriority(out error);
+        }
+
+        public bool CanPlayCard(int cardInstanceId)
+        {
+            if (!IsActive)
+                return false;
+
+            var match = runner.Match;
+            if (match.WinnerId.HasValue)
+                return false;
+
+            var player = match.GetPlayer(localPlayerId);
+            if (player == null || player.Lost)
+                return false;
+
+            if (botActing || localPlayerId != match.PriorityPlayerId)
+                return false;
+
+            var card = match.GetCard(cardInstanceId);
+            if (card?.Printing == null || !player.Hand.Contains(card))
+                return false;
+
+            var printing = card.Printing;
+            if (printing.Type == CardType.WillSite)
+            {
+                if (match.Phase != Phase.Site || player.Id != match.ActivePlayerId)
+                    return false;
+                if (player.SitesPlayedThisTurn >= 1)
+                    return false;
+            }
+            else if (printing.Type == CardType.Algorithm)
+            {
+                if (player.Id != match.ActivePlayerId)
+                    return false;
+            }
+            else if (printing.Type == CardType.Surge || HasNowTiming(card))
+            {
+                // Now is legal with priority.
+            }
+            else if (player.Id != match.ActivePlayerId || match.Phase != Phase.Main)
+            {
+                return false;
+            }
+
+            return player.Will >= printing.WillCost;
+        }
+
+        static bool HasNowTiming(CardInstance card)
+        {
+            var abilities = card.Printing?.Abilities;
+            if (abilities == null)
+                return false;
+
+            for (var i = 0; i < abilities.Count; i++)
+            {
+                if (abilities[i].Timing == Timing.Now)
+                    return true;
+            }
+
+            return false;
         }
 
         public bool TryPlayCard(int cardInstanceId, out string error)
@@ -153,7 +283,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            var result = ApplyWithAutoPass(new PlayerAction
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
             {
                 Kind = PlayerActionKind.PlayCard,
                 PlayerId = localPlayerId,
@@ -167,9 +303,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
+            PublishResult(result);
+            KickNonLocalActors();
             return true;
         }
 
@@ -188,7 +323,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            var result = ApplyWithAutoPass(new PlayerAction
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
             {
                 Kind = PlayerActionKind.StoreBuy,
                 PlayerId = localPlayerId,
@@ -203,9 +344,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
+            PublishResult(result);
+            KickNonLocalActors();
             return true;
         }
 
@@ -218,7 +358,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            var result = ApplyWithAutoPass(new PlayerAction
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
             {
                 Kind = PlayerActionKind.StoreKeep,
                 PlayerId = localPlayerId,
@@ -232,20 +378,46 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
+            PublishResult(result);
+            KickNonLocalActors();
             return true;
         }
 
-        ApplyResult ApplyWithAutoPass(PlayerAction action)
+        ApplyResult ApplyThenAdvance(PlayerAction action)
         {
-            var result = runner.Apply(action);
-            if (!result.Success)
-                return result;
+            return runner.Apply(action);
+        }
 
-            AutoPassNonLocalPriority();
-            return result;
+        void PublishResult(ApplyResult result)
+        {
+            if (result == null || !result.Success)
+                return;
+
+            ProcessEvents(result.Events);
+            SyncHudFromEngine();
+            RaisePhaseChanged(false);
+            EngineEventsApplied?.Invoke(result.Events);
+        }
+
+        void KickNonLocalActors()
+        {
+            if (!IsActive)
+                return;
+
+            if (!IsBotMatch)
+            {
+                AutoPassNonLocalPriority();
+                return;
+            }
+
+            if (botActing)
+                return;
+
+            var match = runner.Match;
+            if (match.PriorityPlayerId == localPlayerId && !ShouldAutoYieldLocalPriority(match))
+                return;
+
+            botRoutine = StartCoroutine(BotPlayRoutine());
         }
 
         void AutoPassNonLocalPriority()
@@ -277,6 +449,169 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
                 ProcessEvents(passResult.Events);
             }
+        }
+
+        IEnumerator BotPlayRoutine()
+        {
+            botActing = true;
+            try
+            {
+                for (var i = 0; i < MaxBotActions; i++)
+                {
+                    if (!IsActive)
+                        yield break;
+
+                    var match = runner.Match;
+                    if (match.WinnerId.HasValue)
+                        yield break;
+
+                    if (match.PriorityPlayerId == localPlayerId)
+                    {
+                        if (!ShouldAutoYieldLocalPriority(match))
+                            yield break;
+
+                        var beforePhase = match.Phase;
+                        var beforeClash = match.ClashPhase;
+                        var yieldResult = runner.Apply(new PlayerAction
+                        {
+                            Kind = PlayerActionKind.Pass,
+                            PlayerId = localPlayerId,
+                        });
+                        if (!yieldResult.Success)
+                            yield break;
+
+                        PublishResult(yieldResult);
+                        if (runner.Match.PriorityPlayerId == localPlayerId
+                            && runner.Match.Phase == beforePhase
+                            && runner.Match.ClashPhase == beforeClash)
+                            yield break;
+                        continue;
+                    }
+
+                    var actor = match.GetPlayer(match.PriorityPlayerId);
+                    if (actor == null || actor.Lost)
+                        yield break;
+
+                    var action = bot.Choose(runner, match.PriorityPlayerId);
+                    if (action.Kind != PlayerActionKind.Pass)
+                    {
+                        if (botActionDelay > 0f)
+                            yield return new WaitForSeconds(botActionDelay);
+                        else
+                            yield return null;
+
+                        if (!IsActive || runner.Match.WinnerId.HasValue)
+                            yield break;
+                        if (runner.Match.PriorityPlayerId == localPlayerId)
+                            continue;
+
+                        action = bot.Choose(runner, runner.Match.PriorityPlayerId);
+                    }
+
+                    var result = runner.Apply(action);
+                    if (!result.Success)
+                    {
+                        result = runner.Apply(new PlayerAction
+                        {
+                            Kind = PlayerActionKind.Pass,
+                            PlayerId = runner.Match.PriorityPlayerId,
+                        });
+                        if (!result.Success)
+                            yield break;
+                    }
+
+                    PublishResult(result);
+                }
+            }
+            finally
+            {
+                botActing = false;
+                botRoutine = null;
+            }
+        }
+
+        bool ShouldAutoYieldLocalPriority(Match match)
+        {
+            if (match.Phase == Phase.Clash && match.ClashPhase == ClashPhase.C2_Answers
+                && StackIsOnlyPresses(match))
+            {
+                var local = match.GetPlayer(localPlayerId);
+                return local == null || !HasReadyClashBody(local);
+            }
+
+            if (match.ActivePlayerId == localPlayerId)
+                return OwnPlayWaitingToResolve(match);
+
+            return !LocalHasResponse(match);
+        }
+
+        static bool StackIsOnlyPresses(Match match)
+        {
+            if (match.Stack == null || match.Stack.Count == 0)
+                return true;
+
+            for (var i = 0; i < match.Stack.Count; i++)
+            {
+                if (match.Stack[i].Type != StackObjectType.Press)
+                    return false;
+            }
+
+            return true;
+        }
+
+        bool OwnPlayWaitingToResolve(Match match)
+        {
+            if (match.Stack == null || match.Stack.Count == 0)
+                return false;
+
+            var top = match.Stack[match.Stack.Count - 1];
+            return top.ControllerId == localPlayerId && top.Type != StackObjectType.Press;
+        }
+
+        bool LocalHasResponse(Match match)
+        {
+            if (match.Phase == Phase.Clash && match.ClashPhase == ClashPhase.C2_Answers
+                && match.Stack != null && match.Stack.Count > 0)
+            {
+                var local = match.GetPlayer(localPlayerId);
+                if (local != null && HasReadyClashBody(local))
+                    return true;
+            }
+
+            if (match.Stack == null || match.Stack.Count == 0)
+                return false;
+
+            var player = match.GetPlayer(localPlayerId);
+            if (player == null)
+                return false;
+
+            for (var i = 0; i < player.Hand.Count; i++)
+            {
+                var card = player.Hand[i];
+                if (card?.Printing == null)
+                    continue;
+                if (card.Printing.Type != CardType.Surge && !HasNowTiming(card))
+                    continue;
+                if (EnginePlayRules.CanPlayFromHand(match, localPlayerId, card.InstanceId))
+                    return true;
+            }
+
+            return false;
+        }
+
+        static bool HasReadyClashBody(Player player)
+        {
+            for (var i = 0; i < player.Field.Count; i++)
+            {
+                var body = player.Field[i];
+                if (body == null || !body.Ready || body.Exhausted || body.CurrentHealth <= 0)
+                    continue;
+                var type = body.Printing?.Type;
+                if (type == CardType.Icon || type == CardType.Companion || type == CardType.Token)
+                    return true;
+            }
+
+            return false;
         }
 
         public void OnEvent(GameEvent e)
@@ -385,7 +720,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         {
             get
             {
-                if (!IsActive)
+                if (!HasLocalPriority || !IsLocalActivePlayer)
                     return false;
                 var step = CurrentTurnStep;
                 return step == TurnStep.WillSite || step == TurnStep.Main;
@@ -393,7 +728,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         }
 
         public bool ShouldShowEndTurnButton =>
-            IsActive && CurrentTurnStep == TurnStep.Clash;
+            HasLocalPriority && IsLocalActivePlayer && CurrentTurnStep == TurnStep.Clash;
 
         void RaisePhaseChanged(bool discardPending)
         {

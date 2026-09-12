@@ -22,7 +22,15 @@ namespace LegendsOfTheUniverse.Presentation
         void OnMouseEnter()
         {
             if (iconSlotView != null && cardView != null)
+            {
                 CardHoverAudio.PlayHoverFlip();
+                HoverTooltipView.ShowCard(cardView);
+            }
+        }
+
+        void OnMouseExit()
+        {
+            HoverTooltipView.Hide();
         }
 
         void OnMouseDown()

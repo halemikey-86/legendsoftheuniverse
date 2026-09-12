@@ -36,8 +36,10 @@ namespace LegendsOfTheUniverse.Presentation
         public static readonly Vector3 Deck = new(18.1f, CardY, -7.23f);
         public static readonly Vector3 Banished = new(-17.9f, CardY, -0.2f);
 
-        // Icon — bottom-left (player side)
+        // Icon — bottom-left (player side), mirrored top-left for the opponent
         public static readonly Vector3 Icon = new(-17.8f, CardY, -7.37f);
+        public static readonly Vector3 OpponentIcon = new(-17.8f, CardY, 8.5f);
+        public static readonly Vector3 OpponentFieldCenter = new(-0.09f, CardY, 6.4f);
 
         // Center play area
         public static readonly Vector3 FieldCenter = new(-0.09f, CardY, 3.6f);
@@ -56,7 +58,10 @@ namespace LegendsOfTheUniverse.Presentation
 
         // Engine A mat zones
         public static readonly Vector3 StackWell = new(0.5f, CardY, 6.8f);
-        public static readonly Vector3 Willwell = new(-12f, CardY, 3.6f);
+        public static readonly Vector3 Willwell = new(-12f, CardY, 2.4f);
+        public static readonly Vector3 OpponentWillwell = new(-12f, CardY, 7.4f);
+        public const int WillwellSlotCount = 4;
+        public const float WillwellSlotSpacing = 1.85f;
         public static readonly Vector3 HoldPlate = new(-10f, CardY, -5.2f);
 
         // Trackers
@@ -108,6 +113,26 @@ namespace LegendsOfTheUniverse.Presentation
         {
             var startZ = FieldCenter.z - ((FieldSlotCount - 1) * FieldSlotSpacing * 0.5f);
             return new Vector3(FieldCenter.x, FieldCenter.y, startZ + (index * FieldSlotSpacing));
+        }
+
+        public static Vector3 GetOpponentFieldSlot(int index)
+        {
+            var startZ = OpponentFieldCenter.z - ((FieldSlotCount - 1) * FieldSlotSpacing * 0.5f);
+            return new Vector3(OpponentFieldCenter.x, OpponentFieldCenter.y, startZ + (index * FieldSlotSpacing));
+        }
+
+        public static Vector3 GetWillwellSlot(int index)
+        {
+            var i = Mathf.Clamp(index, 0, WillwellSlotCount - 1);
+            var startZ = Willwell.z - ((WillwellSlotCount - 1) * WillwellSlotSpacing * 0.5f);
+            return new Vector3(Willwell.x, Willwell.y, startZ + (i * WillwellSlotSpacing));
+        }
+
+        public static Vector3 GetOpponentWillwellSlot(int index)
+        {
+            var i = Mathf.Clamp(index, 0, WillwellSlotCount - 1);
+            var startZ = OpponentWillwell.z - ((WillwellSlotCount - 1) * WillwellSlotSpacing * 0.5f);
+            return new Vector3(OpponentWillwell.x, OpponentWillwell.y, startZ + (i * WillwellSlotSpacing));
         }
 
         public static Vector3 GetRelicBondSlot(int index)

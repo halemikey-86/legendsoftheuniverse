@@ -110,7 +110,7 @@ namespace LegendsOfTheUniverse.Presentation
 
         void EnsureTableLight()
         {
-            foreach (var light in FindObjectsByType<Light>(FindObjectsSortMode.None))
+            foreach (var light in FindObjectsByType<Light>())
             {
                 if (light != null && light.enabled && light.type == LightType.Directional)
                     return;

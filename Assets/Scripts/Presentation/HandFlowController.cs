@@ -428,8 +428,11 @@ namespace LegendsOfTheUniverse.Presentation
 
         void OnTurnPhaseChanged(TurnStep step, bool discardPending)
         {
-            SetStoreButtonsVisible(step == TurnStep.Main && !discardPending);
+            var localMain = step == TurnStep.Main && !discardPending
+                && (matchBridge == null || !matchBridge.IsActive || matchBridge.IsLocalActivePlayer);
+            SetStoreButtonsVisible(localMain);
             UpdateTurnButtons();
+            handView?.RefreshPlayableOutlines();
         }
 
         void UpdateTurnButtons()
@@ -708,6 +711,7 @@ namespace LegendsOfTheUniverse.Presentation
             }
 
             keepButton.gameObject.SetActive(visible);
+            HoverTooltipTrigger.Attach(keepButton.gameObject, "Keep this opening hand");
         }
 
         void EnsureStoreActionButton(
@@ -736,6 +740,24 @@ namespace LegendsOfTheUniverse.Presentation
             }
 
             button.gameObject.SetActive(visible);
+            HoverTooltipTrigger.Attach(button.gameObject, StoreActionTooltip(name));
+        }
+
+        static string StoreActionTooltip(string buttonName)
+        {
+            switch (buttonName)
+            {
+                case "BuyButton":
+                    return "Buy a card from the store";
+                case "SellButton":
+                    return "Sell a card from your hand";
+                case "TradeButton":
+                    return "Trade a card with the store";
+                case "RiverToggleButton":
+                    return "Hide or show the store";
+                default:
+                    return buttonName.Replace("Button", string.Empty);
+            }
         }
 
         Button CreateKeepButton()
@@ -790,6 +812,9 @@ namespace LegendsOfTheUniverse.Presentation
             }
 
             SetPhaseButtonState(button, true, false);
+            HoverTooltipTrigger.Attach(
+                button.gameObject,
+                name == "EndTurnButton" ? "End your turn" : "Go to the next phase");
         }
 
         Button CreatePhaseButton(string name, float insetFromRight, Sprite icon)

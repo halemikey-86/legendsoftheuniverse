@@ -51,7 +51,9 @@ namespace LegendsOfTheUniverse.Presentation
             titleText = CreateText(root.transform, "Title", 22, FontStyle.Bold, new Vector2(0.5f, 0.78f), new Vector2(200f, 56f));
 
             acceptButton = CreateButton(root.transform, "AcceptButton", "Accept", AcceptColor, new Vector2(0.5f, 0.36f), OnAcceptClicked);
+            HoverTooltipTrigger.Attach(acceptButton.gameObject, "Accept this card");
             declineButton = CreateButton(root.transform, "DeclineButton", "Decline", DeclineColor, new Vector2(0.5f, 0.12f), OnDeclineClicked);
+            HoverTooltipTrigger.Attach(declineButton.gameObject, "Decline this card");
 
             root.SetActive(false);
         }

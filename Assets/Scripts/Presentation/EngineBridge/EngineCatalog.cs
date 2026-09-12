@@ -42,6 +42,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         static readonly Dictionary<string, string> cardArtFolder = new();
         static readonly Dictionary<string, string> cardArtFileKey = new();
         static readonly Dictionary<string, Texture2D> cardArtCache = new();
+        static readonly Dictionary<Texture2D, CardPrinting> printingByArt = new();
+        static bool artIndexWarmed;
 
         public static IReadOnlyList<CardPrinting> LoadPrintings()
         {
@@ -87,7 +89,56 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
             var texture = ResolveCardArt(printing);
             cardArtCache[printing.Id] = texture;
+            if (texture != null)
+                printingByArt[texture] = printing;
             return texture;
+        }
+
+        public static bool TryGetPrintingByArt(Texture2D texture, out CardPrinting printing)
+        {
+            printing = null;
+            if (texture == null)
+                return false;
+
+            WarmArtIndex();
+            if (printingByArt.TryGetValue(texture, out printing))
+                return true;
+
+            var normalized = Normalize(texture.name);
+            if (string.IsNullOrEmpty(normalized))
+                return false;
+
+            var printings = LoadPrintings();
+            for (var i = 0; i < printings.Count; i++)
+            {
+                var candidate = printings[i];
+                if (Normalize(candidate.Name) == normalized)
+                {
+                    printing = candidate;
+                    printingByArt[texture] = candidate;
+                    return true;
+                }
+
+                if (cardArtFileKey.TryGetValue(candidate.Id, out var fileKey) && Normalize(fileKey) == normalized)
+                {
+                    printing = candidate;
+                    printingByArt[texture] = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        static void WarmArtIndex()
+        {
+            if (artIndexWarmed)
+                return;
+
+            artIndexWarmed = true;
+            var printings = LoadPrintings();
+            for (var i = 0; i < printings.Count; i++)
+                GetCardArt(printings[i]);
         }
 
         static Texture2D ResolveCardArt(CardPrinting printing)

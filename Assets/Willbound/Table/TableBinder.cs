@@ -86,16 +86,16 @@ namespace Willbound.Table
             if (snap.PriorityPlayerId != snap.LocalPlayerId)
                 return false;
 
-            for (var i = 0; i < snap.LocalHand.Count; i++)
-            {
-                if (snap.LocalHand[i].InstanceId == instanceId)
-                    return snap.Phase == Phase.Main || snap.Phase == Phase.Site;
-            }
-
             for (var i = 0; i < snap.DeclareQueue.Count; i++)
             {
                 if (snap.DeclareQueue[i] == instanceId)
                     return snap.ClashPhase == ClashPhase.C1_ActiveDeclare;
+            }
+
+            for (var i = 0; i < snap.LocalHand.Count; i++)
+            {
+                if (snap.LocalHand[i].InstanceId == instanceId)
+                    return snap.Phase == Phase.Main || snap.Phase == Phase.Site;
             }
 
             return false;
@@ -126,7 +126,8 @@ namespace Willbound.Table
                 return zone switch
                 {
                     TableZoneKind.HoldPlate => snap.ClashPhase == ClashPhase.C1_ActiveDeclare,
-                    TableZoneKind.Field => snap.ClashPhase == ClashPhase.C1_ActiveDeclare && targetInstanceId.HasValue,
+                    TableZoneKind.Field => snap.ClashPhase == ClashPhase.C1_ActiveDeclare
+                        && (targetInstanceId.HasValue || DefaultPressTargetId().HasValue),
                     _ => false,
                 };
             }
@@ -158,6 +159,49 @@ namespace Willbound.Table
 
         public bool IsLegalDrop(int instanceId, TableZoneKind zone, int? targetInstanceId = null) =>
             IsLegalDropInternal(instanceId, zone, targetInstanceId);
+
+        public bool IsLegalPressTarget(int attackerInstanceId, int targetInstanceId)
+        {
+            if (actionHost == null || !actionHost.IsActive)
+                return false;
+
+            var snap = snapshot;
+            if (snap.PriorityPlayerId != snap.LocalPlayerId)
+                return false;
+            if (snap.ClashPhase != ClashPhase.C1_ActiveDeclare)
+                return false;
+            if (!IsBodyInDeclareQueue(attackerInstanceId) || attackerInstanceId == targetInstanceId)
+                return false;
+
+            for (var i = 0; i < snap.OpponentField.Count; i++)
+            {
+                var card = snap.OpponentField[i];
+                if (card == null || card.InstanceId != targetInstanceId)
+                    continue;
+                return card.Type is CardType.Icon or CardType.Companion or CardType.Token;
+            }
+
+            return false;
+        }
+
+        public int? DefaultPressTargetId()
+        {
+            var snap = snapshot;
+            int? iconId = null;
+            int? bodyId = null;
+            for (var i = 0; i < snap.OpponentField.Count; i++)
+            {
+                var card = snap.OpponentField[i];
+                if (card == null)
+                    continue;
+                if (card.Type == CardType.Icon)
+                    iconId = card.InstanceId;
+                else if (bodyId == null && card.Type is CardType.Companion or CardType.Token)
+                    bodyId = card.InstanceId;
+            }
+
+            return iconId ?? bodyId;
+        }
 
         public PlayerAction BuildDropAction(int instanceId, TableZoneKind zone, int? targetInstanceId = null, int? storeSlotIndex = null)
         {
@@ -231,12 +275,16 @@ namespace Willbound.Table
                 snap.LocalHonor = local.Honor;
                 snap.LocalHand = BuildCardList(local.Hand);
                 snap.LocalField = BuildFieldList(local);
+                snap.LocalWillwell = BuildCardList(local.Willwell);
             }
 
             var opponentId = localPlayerId == 0 ? 1 : 0;
             var opponent = match.GetPlayer(opponentId);
             if (opponent != null)
+            {
                 snap.OpponentField = BuildFieldList(opponent);
+                snap.OpponentWillwell = BuildCardList(opponent.Willwell);
+            }
 
             for (var i = 0; i < match.Store.Length; i++)
                 snap.Store[i] = match.Store[i] != null ? ToCardSnapshot(match.Store[i]) : null;
@@ -281,6 +329,7 @@ namespace Willbound.Table
                 Name = card.Printing?.Name,
                 Type = card.Printing?.Type ?? CardType.Companion,
                 WillCost = card.Printing?.WillCost ?? 0,
+                StoreWorth = card.Printing?.StoreWorth ?? 0,
                 Strike = card.Strike,
                 Guard = card.Guard,
                 Health = card.Health,

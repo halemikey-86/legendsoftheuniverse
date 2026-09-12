@@ -22,6 +22,8 @@ namespace Willbound.Table
         public IReadOnlyList<CardSnapshot> LocalHand = System.Array.Empty<CardSnapshot>();
         public IReadOnlyList<CardSnapshot> LocalField = System.Array.Empty<CardSnapshot>();
         public IReadOnlyList<CardSnapshot> OpponentField = System.Array.Empty<CardSnapshot>();
+        public IReadOnlyList<CardSnapshot> LocalWillwell = System.Array.Empty<CardSnapshot>();
+        public IReadOnlyList<CardSnapshot> OpponentWillwell = System.Array.Empty<CardSnapshot>();
         public CardSnapshot[] Store = new CardSnapshot[7];
         public int StackCount;
     }
@@ -33,6 +35,7 @@ namespace Willbound.Table
         public string Name;
         public CardType Type;
         public int WillCost;
+        public int StoreWorth;
         public int Strike;
         public int Guard;
         public int Health;

@@ -1,8 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation.EngineBridge;
+using LegendsOfTheUniverse.Rules;
 using UnityEngine;
 using Willbound.Engine;
+using CardInstance = Willbound.Engine.CardInstance;
+using CardType = Willbound.Engine.CardType;
+using GameEvent = Willbound.Engine.GameEvent;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -29,7 +33,11 @@ namespace LegendsOfTheUniverse.Presentation
 
         public CardView CardPrefab => cardPrefab;
 
-        void OnEnable() => SyncTableHeights();
+        void OnEnable()
+        {
+            SyncTableHeights();
+            SubscribeMatchBridge();
+        }
 
         void SyncTableHeights()
         {
@@ -74,6 +82,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float playDropZThreshold = -2f;
 
         readonly List<CardView> handCards = new();
+        readonly Dictionary<int, CardView> cardsLeavingHand = new();
         readonly Dictionary<CardView, Coroutine> hoverAnimations = new();
         CardView selectedCard;
         CardView hoveredCard;
@@ -104,12 +113,18 @@ namespace LegendsOfTheUniverse.Presentation
         public bool ContainsHandCard(CardView card) => card != null && handCards.Contains(card);
         public bool IsDragging => draggingCard != null;
         public bool CanClickCards => handKept && !IsDealing;
+        bool IsHandPlayPhase =>
+            matchBridge == null
+            || !matchBridge.IsActive
+            || matchBridge.CurrentTurnStep == TurnStep.Main
+            || matchBridge.CurrentTurnStep == TurnStep.WillSite;
         public bool CanReorderCards =>
             handKept
             && !IsDealing
             && !discardMode
             && selectedCard == null
             && draggingCard == null
+            && IsHandPlayPhase
             && (storeActions == null || storeActions.CurrentMode == StoreActionMode.None);
         public bool HasInspectSelection => selectedCard != null;
 
@@ -125,7 +140,135 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void BindMatchBridge(TableMatchBridge bridge)
         {
+            UnsubscribeMatchBridge();
             matchBridge = bridge;
+            if (isActiveAndEnabled)
+                SubscribeMatchBridge();
+            RefreshPlayableOutlines();
+        }
+
+        void OnDisable()
+        {
+            UnsubscribeMatchBridge();
+        }
+
+        void OnDestroy()
+        {
+            UnsubscribeMatchBridge();
+        }
+
+        void SubscribeMatchBridge()
+        {
+            if (matchBridge == null)
+                return;
+
+            matchBridge.EngineEventsApplied -= OnEngineEventsApplied;
+            matchBridge.PhaseStateChanged -= OnEnginePhaseChanged;
+            matchBridge.EngineEventsApplied += OnEngineEventsApplied;
+            matchBridge.PhaseStateChanged += OnEnginePhaseChanged;
+        }
+
+        void UnsubscribeMatchBridge()
+        {
+            if (matchBridge == null)
+                return;
+
+            matchBridge.EngineEventsApplied -= OnEngineEventsApplied;
+            matchBridge.PhaseStateChanged -= OnEnginePhaseChanged;
+        }
+
+        void OnEngineEventsApplied(IReadOnlyList<GameEvent> _)
+        {
+            RefreshPlayableOutlines();
+            ReconcileLeavingCards();
+        }
+
+        public bool OwnsInstance(int instanceId)
+        {
+            if (cardsLeavingHand.ContainsKey(instanceId))
+                return true;
+
+            for (var i = 0; i < handCards.Count; i++)
+            {
+                if (handCards[i] != null && handCards[i].EngineCardInstanceId == instanceId)
+                    return true;
+            }
+
+            return false;
+        }
+
+        public bool TryTakeLeavingCard(int instanceId, out CardView card)
+        {
+            if (cardsLeavingHand.TryGetValue(instanceId, out card))
+            {
+                cardsLeavingHand.Remove(instanceId);
+                return card != null;
+            }
+
+            for (var i = 0; i < handCards.Count; i++)
+            {
+                if (handCards[i] == null || handCards[i].EngineCardInstanceId != instanceId)
+                    continue;
+
+                card = handCards[i];
+                handCards.RemoveAt(i);
+                return true;
+            }
+
+            card = null;
+            return false;
+        }
+
+        void ReconcileLeavingCards()
+        {
+            if (matchBridge == null || !matchBridge.IsActive || cardsLeavingHand.Count == 0)
+                return;
+
+            var remove = new List<int>();
+            foreach (var pair in cardsLeavingHand)
+            {
+                var instance = matchBridge.Runner.Match.GetCard(pair.Key);
+                if (instance == null || instance.Zone == Zone.Removed || instance.Zone == Zone.Banished)
+                {
+                    if (pair.Value != null)
+                    {
+                        pair.Value.GetComponent<CardAnimator>()?.Cancel();
+                        Destroy(pair.Value.gameObject);
+                    }
+                    remove.Add(pair.Key);
+                    continue;
+                }
+
+                if (instance.Zone == Zone.Hand && pair.Value != null && !handCards.Contains(pair.Value))
+                {
+                    handCards.Add(pair.Value);
+                    remove.Add(pair.Key);
+                }
+            }
+
+            for (var i = 0; i < remove.Count; i++)
+                cardsLeavingHand.Remove(remove[i]);
+        }
+
+        void OnEnginePhaseChanged(TurnStep _, bool __) => RefreshPlayableOutlines();
+
+        public void RefreshPlayableOutlines()
+        {
+            for (var i = 0; i < handCards.Count; i++)
+            {
+                var card = handCards[i];
+                if (card == null)
+                    continue;
+
+                var playable = !discardMode
+                    && handKept
+                    && !IsDealing
+                    && card.EngineCardInstanceId is int instanceId
+                    && matchBridge != null
+                    && matchBridge.CanPlayCard(instanceId);
+
+                card.SetPlayableOutline(playable);
+            }
         }
 
         /// <summary>Replaces the current hand display with one that mirrors the engine's real starting hand,
@@ -149,6 +292,7 @@ namespace LegendsOfTheUniverse.Presentation
                 var slot = GetSpreadSlot(i, engineHand.Count, keptHandCenter, keptSpreadSpacing, i * 0.002f);
                 var card = Instantiate(cardPrefab, slot.Position, slot.Rotation, transform);
                 card.SetFrontTexture(EngineCatalog.GetCardArt(instance.Printing));
+                card.BindPrinting(instance.Printing);
                 card.SetFaceUpImmediate(true);
                 card.SetCardScale(keptScale);
                 card.SetClickable(true);
@@ -161,6 +305,8 @@ namespace LegendsOfTheUniverse.Presentation
 
                 handCards.Add(card);
             }
+
+            RefreshPlayableOutlines();
         }
 
         public void ClearInspectSelection()
@@ -175,6 +321,7 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void ResetSession()
         {
+            HoverTooltipView.Hide();
             handKept = false;
             handTucked = false;
             selectedCard = null;
@@ -344,6 +491,7 @@ namespace LegendsOfTheUniverse.Presentation
             discardCompleteCallback = onComplete;
             ClearInspectSelection();
             storeActions?.SetMode(StoreActionMode.None);
+            RefreshPlayableOutlines();
         }
 
         public void HandleTableClick(CardView card)
@@ -400,6 +548,7 @@ namespace LegendsOfTheUniverse.Presentation
                 discardMode = false;
                 var callback = discardCompleteCallback;
                 discardCompleteCallback = null;
+                RefreshPlayableOutlines();
                 callback?.Invoke();
             }
         }
@@ -451,6 +600,7 @@ namespace LegendsOfTheUniverse.Presentation
         {
             pointerDragStarted = true;
             draggingCard = card;
+            HoverTooltipView.Hide();
             hoveredCard = null;
             card.transform.SetAsLastSibling();
             card.SetCardScale(keptScale * hoverScaleMultiplier);
@@ -508,15 +658,23 @@ namespace LegendsOfTheUniverse.Presentation
             if (card.transform.position.z < playDropZThreshold)
                 return false;
 
-            draggingCard = null;
+            var instanceId = card.EngineCardInstanceId.Value;
+            if (!IsHandPlayPhase || !matchBridge.CanPlayCard(instanceId))
+                return false;
 
-            if (matchBridge.TryPlayCard(card.EngineCardInstanceId.Value, out _))
+            draggingCard = null;
+            handCards.Remove(card);
+            cardsLeavingHand[instanceId] = card;
+
+            if (!matchBridge.TryPlayCard(instanceId, out _))
             {
-                handCards.Remove(card);
-                StartCoroutine(AnimateCardPlayedAwayRoutine(card));
+                cardsLeavingHand.Remove(instanceId);
+                if (!handCards.Contains(card))
+                    handCards.Add(card);
             }
 
             StartCoroutine(LayoutKeptHandRoutine(dragReorderDuration));
+            RefreshPlayableOutlines();
             return true;
         }
 
@@ -532,17 +690,39 @@ namespace LegendsOfTheUniverse.Presentation
                 return;
             }
 
+            var step = matchBridge.CurrentTurnStep;
+            if (step != TurnStep.Main && step != TurnStep.WillSite)
+            {
+                HideFieldSlotHighlight();
+                return;
+            }
+
             if (worldPosition.z < playDropZThreshold)
             {
                 HideFieldSlotHighlight();
                 return;
             }
 
-            var fieldCount = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId).Field.Count;
+            var player = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId);
+            if (IsWillSite(card))
+            {
+                var wellCount = player.Willwell.Count;
+                ShowFieldSlotHighlight(PlaymatZones.GetWillwellSlot(wellCount), wellCount < PlaymatZones.WillwellSlotCount);
+                return;
+            }
+
+            var fieldCount = player.Field.Count;
             if (fieldCount >= PlaymatZones.FieldSlotCount)
                 ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(PlaymatZones.FieldSlotCount - 1), false);
             else
                 ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(fieldCount), true);
+        }
+
+        static bool IsWillSite(CardView card)
+        {
+            if (card.BoundPrinting != null)
+                return card.BoundPrinting.Type == CardType.WillSite;
+            return false;
         }
 
         void ShowFieldSlotHighlight(Vector3 worldPosition, bool legal)
@@ -689,6 +869,7 @@ namespace LegendsOfTheUniverse.Presentation
             }
 
             yield return new WaitForSeconds(duration);
+            RefreshPlayableOutlines();
         }
 
         public IEnumerator DestroyCardRoutine(CardView card, float duration)
@@ -722,10 +903,14 @@ namespace LegendsOfTheUniverse.Presentation
 
             while (animating > 0)
                 yield return null;
+
+            RefreshPlayableOutlines();
         }
 
         public void HandleCardHoverEnter(CardView card)
         {
+            HoverTooltipView.ShowCard(card);
+
             if (!handCards.Contains(card) || selectedCard != null || draggingCard != null)
                 return;
 
@@ -740,6 +925,8 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void HandleCardHoverExit(CardView card)
         {
+            HoverTooltipView.Hide();
+
             if (selectedCard == card)
                 return;
 
@@ -995,10 +1182,16 @@ namespace LegendsOfTheUniverse.Presentation
             float duration,
             System.Action onComplete)
         {
+            if (card == null)
+            {
+                onComplete?.Invoke();
+                yield break;
+            }
+
             var animator = card.GetComponent<CardAnimator>();
             if (animator != null)
                 yield return animator.AnimateToRoutine(position, scale, duration, rotation);
-            else
+            else if (card != null)
             {
                 card.transform.position = position;
                 card.transform.rotation = rotation;
