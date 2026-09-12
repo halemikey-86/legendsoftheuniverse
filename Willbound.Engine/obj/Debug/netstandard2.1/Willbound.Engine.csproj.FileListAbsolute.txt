@@ -1,0 +1,11 @@
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/bin/Debug/netstandard2.1/Willbound.Engine.deps.json
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/bin/Debug/netstandard2.1/Willbound.Engine.dll
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/bin/Debug/netstandard2.1/Willbound.Engine.pdb
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.csproj.AssemblyReference.cache
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.GeneratedMSBuildEditorConfig.editorconfig
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.AssemblyInfoInputs.cache
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.AssemblyInfo.cs
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.csproj.CoreCompileInputs.cache
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.sourcelink.json
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.dll
+/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.pdb

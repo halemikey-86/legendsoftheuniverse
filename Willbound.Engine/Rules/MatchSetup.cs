@@ -46,7 +46,13 @@ namespace Willbound.Engine
 
                 rng.Shuffle(player.Deck);
 
-                for (var h = 0; h < 5 && player.Deck.Count > 0; h++)
+                for (var h = 0; h < spec.HandIds.Count && h < 5; h++)
+                {
+                    var card = CreateInstance(match, database, spec.HandIds[h], spec.PlayerId, Zone.Hand);
+                    player.Hand.Add(card);
+                }
+
+                for (var h = player.Hand.Count; h < 5 && player.Deck.Count > 0; h++)
                 {
                     var card = player.Deck[0];
                     player.Deck.RemoveAt(0);
@@ -64,12 +70,14 @@ namespace Willbound.Engine
                 match.Players.Add(player);
             }
 
-            for (var s = 0; s < specSupplyIds(database, setupPlayers).Count; s++)
+            var supplyIds = specSupplyIds(database, setupPlayers);
+            for (var s = 0; s < supplyIds.Count; s++)
             {
-                var card = CreateInstance(match, database, specSupplyIds(database, setupPlayers)[s], -1, Zone.Supply);
+                var card = CreateInstance(match, database, supplyIds[s], -1, Zone.Supply);
                 match.Supply.Add(card);
             }
 
+            rng.Shuffle(match.Supply);
             RefillStore(match, rng);
             match.Phase = Phase.Start;
             BeginTurn(match, rng);
@@ -138,6 +146,8 @@ namespace Willbound.Engine
             player.StoreActionsThisTurn = 0;
             player.SitesPlayedThisTurn = 0;
             player.DeclaredClashThisTurn = false;
+            player.BoughtThisTurn.Clear();
+            RefillStore(match, rng);
 
             ApplyStartAutomatic(match, player);
             match.Phase = Phase.Site;
@@ -251,6 +261,10 @@ namespace Willbound.Engine
         public string IconId;
         public List<string> DeckIds = new List<string>();
         public List<string> StartInFieldIds = new List<string>();
+
+        /// <summary>Explicit opening hand (e.g. the hand the player already reviewed/kept). Any remaining
+        /// slots up to 5 cards are filled from the top of the shuffled Deck, same as when this is empty.</summary>
+        public List<string> HandIds = new List<string>();
     }
 
     public static class KeywordParser

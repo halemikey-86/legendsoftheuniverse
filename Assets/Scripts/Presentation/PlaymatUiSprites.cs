@@ -38,9 +38,10 @@ namespace LegendsOfTheUniverse.Presentation
         {
             return kind switch
             {
-                DialKind.WillRound => LabelWill,
+                DialKind.Will => LabelWill,
                 DialKind.Worth => LabelWorth,
                 DialKind.Honor => LabelHonor,
+                DialKind.Round => LabelRound,
                 _ => null,
             };
         }

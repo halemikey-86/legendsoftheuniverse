@@ -32,6 +32,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
         MatchRunner runner;
         InMemoryCardDatabase database;
+        string pendingLocalIconId;
+        List<string> pendingLocalHandIds;
         readonly Queue<GameEvent> eventQueue = new Queue<GameEvent>();
         readonly HeuristicBot bot = new HeuristicBot();
         Coroutine botRoutine;
@@ -71,6 +73,15 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
         public void BeginSoloMatch() => BeginMatch();
 
+        /// <summary>Carries the Icon and kept opening hand the player actually chose into the real match.
+        /// Call before BeginMatch(); any card that doesn't resolve to a known printing is simply skipped
+        /// and its hand slot is filled from the deck instead.</summary>
+        public void ConfigureLocalPlayer(string iconPrintingId, IReadOnlyList<string> handPrintingIds)
+        {
+            pendingLocalIconId = iconPrintingId;
+            pendingLocalHandIds = handPrintingIds != null ? new List<string>(handPrintingIds) : null;
+        }
+
         public void BeginMatch()
         {
             try
@@ -78,19 +89,22 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 var printings = EngineCatalog.LoadPrintings();
                 database = new InMemoryCardDatabase(printings);
                 var rng = new SeededRng(rngSeed);
+                var localIconId = ResolveIconId(printings, pendingLocalIconId ?? localIconPrintingId);
+                var localHandIds = FilterKnownPrintingIds(printings, pendingLocalHandIds);
                 var players = new List<SetupPlayer>
                 {
                     new SetupPlayer
                     {
                         PlayerId = 0,
-                        IconId = ResolveIconId(printings, localIconPrintingId),
-                        DeckIds = EngineCatalog.DefaultDeck(30),
+                        IconId = localIconId,
+                        DeckIds = EngineCatalog.DefaultDeck(localIconId, 30),
+                        HandIds = localHandIds,
                     },
                     new SetupPlayer
                     {
                         PlayerId = 1,
                         IconId = ResolveIconId(printings, opponentIconPrintingId),
-                        DeckIds = EngineCatalog.DefaultDeck(30),
+                        DeckIds = EngineCatalog.DefaultDeck(opponentIconPrintingId, 30),
                     },
                 };
 
@@ -124,6 +138,34 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
 
             return firstIcon?.Id ?? requestedId;
+        }
+
+        static List<string> FilterKnownPrintingIds(IReadOnlyList<CardPrinting> printings, List<string> requestedIds)
+        {
+            var result = new List<string>();
+            if (requestedIds == null)
+                return result;
+
+            for (var i = 0; i < requestedIds.Count; i++)
+            {
+                var id = requestedIds[i];
+                if (string.IsNullOrEmpty(id))
+                    continue;
+
+                for (var p = 0; p < printings.Count; p++)
+                {
+                    if (printings[p].Id != id)
+                        continue;
+
+                    // Icons only ever belong in Zone.Field via spec.IconId — never as a hand card,
+                    // even if the same character also has ordinary card art (e.g. a numbered-set print).
+                    if (printings[p].Type != CardType.Icon)
+                        result.Add(id);
+                    break;
+                }
+            }
+
+            return result;
         }
 
         public ApplyResult TryApply(PlayerAction action)
@@ -344,17 +386,24 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            PublishResult(result);
-            KickNonLocalActors();
+            ProcessEvents(result.Events);
+            SyncHudFromEngine();
+            RaisePhaseChanged(false);
             return true;
         }
 
-        public bool TryStoreKeep(out string error)
+        public bool TryStoreSell(int handCardInstanceId, out string error)
         {
             error = null;
             if (!IsActive)
             {
                 error = "Engine not active.";
+                return false;
+            }
+
+            if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
+            {
+                error = "Store actions are only available during your Main phase (once per turn).";
                 return false;
             }
 
@@ -366,9 +415,51 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
             var result = ApplyThenAdvance(new PlayerAction
             {
-                Kind = PlayerActionKind.StoreKeep,
+                Kind = PlayerActionKind.StoreSell,
                 PlayerId = localPlayerId,
-                StoreKind = StoreActionKind.Keep,
+                HandCardInstanceId = handCardInstanceId,
+                StoreKind = StoreActionKind.Sell,
+            });
+
+            if (!result.Success)
+            {
+                error = result.Error;
+                EngineError?.Invoke(error);
+                return false;
+            }
+
+            PublishResult(result);
+            KickNonLocalActors();
+            return true;
+        }
+
+        public bool TryStoreSell(int handCardInstanceId, out string error)
+        {
+            error = null;
+            if (!IsActive)
+            {
+                error = "Engine not active.";
+                return false;
+            }
+
+            if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
+            {
+                error = "Store actions are only available during your Main phase (once per turn).";
+                return false;
+            }
+
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreSell,
+                PlayerId = localPlayerId,
+                HandCardInstanceId = handCardInstanceId,
+                StoreKind = StoreActionKind.Sell,
             });
 
             if (!result.Success)

@@ -3,11 +3,11 @@ using UnityEngine;
 namespace LegendsOfTheUniverse.Presentation
 {
     /// <summary>
-    /// Willbound Stamp family from Assets/Fonts (runtime copies in Resources/Fonts).
+    /// Atkinson Hyperlegible family from Assets/Fonts (runtime copies in Resources/Fonts).
     /// </summary>
     public static class GameFonts
     {
-        const string FontRoot = "Fonts/WillboundStamp";
+        const string FontRoot = "Fonts/AtkinsonHyperlegible";
 
         static Font regular;
         static Font bold;

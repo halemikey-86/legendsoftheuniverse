@@ -49,7 +49,7 @@ namespace LegendsOfTheUniverse.Presentation
         public const float FieldSlotSpacing = 1.65f;
 
         // Hand (bottom band)
-        public static readonly Vector3 HandCenter = new(0f, HandY, -6f);
+        public static readonly Vector3 HandCenter = new(0f, HandY, -8f);
         public static float HandSpreadSpacing => CardLayout.SpreadSpacing(CardScale);
 
         // Opening hand (pre-keep — middle-lower table)
@@ -64,10 +64,7 @@ namespace LegendsOfTheUniverse.Presentation
         public const float WillwellSlotSpacing = 1.85f;
         public static readonly Vector3 HoldPlate = new(-10f, CardY, -5.2f);
 
-        // Trackers
-        public static readonly Vector3 WillRoundTrack = new(18.4f, CardY, 3.51f);
-        public static readonly Vector3 Worth = new(-13.9f, CardY, 1.52f);
-        public static readonly Vector3 Honor = new(-13.9f, CardY, -0.5f);
+        // Will/Worth/Honor/Round trackers are screen-anchored HUD (see PlaymatZonesView) — no table position.
         public const int MaxRound = 8;
 
         public const float TableFitMargin = 1.75f;
@@ -83,7 +80,7 @@ namespace LegendsOfTheUniverse.Presentation
             }
         }
 
-        /// <summary>World-space XZ bounds for camera framing (mat + market row + hand + trackers).</summary>
+        /// <summary>World-space XZ bounds for camera framing (mat + market row + hand).</summary>
         public static TableContentBounds GetTableContentBounds(float margin = TableFitMargin)
         {
             var cardHalfW = CardLayout.Width(CardScale) * 0.5f;
@@ -97,7 +94,7 @@ namespace LegendsOfTheUniverse.Presentation
             maxZ = Mathf.Max(maxZ, StoreRowCenter.z + cardHalfD + margin);
             maxZ = Mathf.Max(maxZ, Supply.z + cardHalfD + margin);
             minX = Mathf.Min(minX, Banished.x - cardHalfW - margin, Icon.x - cardHalfW - margin);
-            maxX = Mathf.Max(maxX, Deck.x + cardHalfW + margin, WillRoundTrack.x + cardHalfW + margin);
+            maxX = Mathf.Max(maxX, Deck.x + cardHalfW + margin);
             minZ = Mathf.Min(minZ, Deck.z - cardHalfD - margin, Icon.z - cardHalfD - margin);
 
             return new TableContentBounds(minX, maxX, minZ, maxZ);

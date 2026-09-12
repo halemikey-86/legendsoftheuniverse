@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
+using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
+using CardInstance = Willbound.Engine.CardInstance;
 
 namespace LegendsOfTheUniverse.Presentation
 {
@@ -374,7 +376,10 @@ namespace LegendsOfTheUniverse.Presentation
             IsDealing = false;
         }
 
-        public IEnumerator BeginRoundRoutine(Vector3 deckPosition)
+        /// <summary>Syncs the 7 store slots from the real engine Store — only fills slots that are visually
+        /// empty but hold a real card engine-side (a fresh reveal, or slots refilled at the start of a turn).
+        /// Slots the engine has emptied (bought/sold away) are left empty; nothing here refills them.</summary>
+        public IEnumerator BeginRoundRoutine(Vector3 deckPosition, IReadOnlyList<CardInstance> engineStore)
         {
             isRiverCollapsed = false;
             IsDealing = true;
@@ -393,12 +398,14 @@ namespace LegendsOfTheUniverse.Presentation
                 if (storeCards[i] != null)
                     continue;
 
-                var fronts = CardDeck.Draw(1);
-                if (fronts.Count == 0)
-                    break;
+                var instance = engineStore != null && i < engineStore.Count ? engineStore[i] : null;
+                if (instance == null)
+                    continue;
 
                 var slotPosition = GetSlotPosition(i);
-                var card = SpawnStoreCard(fronts[0], deckPosition, slotPosition);
+                var card = SpawnStoreCard(EngineCatalog.GetCardArt(instance.Printing), deckPosition, slotPosition);
+                card.BindPrinting(instance.Printing);
+                card.SetEngineCardInstanceId(instance.InstanceId);
                 storeCards[i] = card;
                 newlyDealt.Add(card);
 
@@ -538,6 +545,8 @@ namespace LegendsOfTheUniverse.Presentation
                 card.transform.rotation = CardView.TableRotation;
                 card.SetCardScale(storeCardScale);
             }
+
+            EnableCardClick(card);
         }
 
         public void EnableAllStoreClicks()

@@ -105,7 +105,6 @@ namespace LegendsOfTheUniverse.Presentation
             if (boughtInstanceId.HasValue)
                 storeCard.SetEngineCardInstanceId(boughtInstanceId);
             yield return handView.AdoptCardRoutine(storeCard, actionAnimDuration);
-            yield return storeView.RefillSlotRoutine(slotIndex, GetSupplyPosition());
 
             currentMode = StoreActionMode.None;
             handView?.RefreshPlayableOutlines();
@@ -113,9 +112,43 @@ namespace LegendsOfTheUniverse.Presentation
 
         IEnumerator SellRoutine(CardView handCard)
         {
-            yield return handView.DestroyCardRoutine(handCard, actionAnimDuration);
+            if (matchBridge == null || !matchBridge.IsActive || handCard.EngineCardInstanceId == null)
+                yield break;
+
+            var instanceId = handCard.EngineCardInstanceId.Value;
+            if (!handView.DetachHandCard(handCard))
+                yield break;
+
+            if (!matchBridge.TryStoreSell(instanceId, out _))
+            {
+                handView.ReattachHandCard(handCard);
+                handView.RelayoutHand();
+                currentMode = StoreActionMode.None;
+                yield break;
+            }
+
+            handView.RelayoutHand();
+
+            var slotIndex = FindStoreSlotFor(instanceId);
+            if (slotIndex >= 0)
+                yield return storeView.AdmitHandCardRoutine(handCard, slotIndex, actionAnimDuration);
+            else
+                yield return handView.DestroyCardRoutine(handCard, actionAnimDuration);
+
             currentMode = StoreActionMode.None;
             handView?.RefreshPlayableOutlines();
+        }
+
+        int FindStoreSlotFor(int instanceId)
+        {
+            var store = matchBridge.Runner.Match.Store;
+            for (var i = 0; i < store.Length; i++)
+            {
+                if (store[i] != null && store[i].InstanceId == instanceId)
+                    return i;
+            }
+
+            return -1;
         }
 
         IEnumerator TradeRoutine(CardView handCard, CardView storeCard)
@@ -130,11 +163,6 @@ namespace LegendsOfTheUniverse.Presentation
             currentMode = StoreActionMode.None;
             handView?.RefreshPlayableOutlines();
             yield return null;
-        }
-
-        Vector3 GetSupplyPosition()
-        {
-            return PlaymatZones.Supply;
         }
     }
 }

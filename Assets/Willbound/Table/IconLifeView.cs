@@ -20,7 +20,7 @@ namespace Willbound.Table
                     anchor,
                     title,
                     "Health",
-                    new Vector3(0f, 0.45f, 1.4f),
+                    new Vector3(0f, 0.45f, -1.4f),
                     new Vector2(176f, 96f),
                     28);
             }

@@ -16,6 +16,9 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] int fontSize = 16;
         [SerializeField] bool showValue = true;
         [SerializeField] bool showTitle = true;
+        [SerializeField] bool useScreenAnchor;
+        [SerializeField] Vector2 screenAnchor01 = new(0.5f, 0.5f);
+        [SerializeField] Vector2 screenOffsetPixels = Vector2.zero;
 
         RectTransform panelRect;
         Text labelText;
@@ -90,6 +93,27 @@ namespace LegendsOfTheUniverse.Presentation
         public static WorldAnchoredUi CreateValueOnly(Transform anchor, Vector3 offset, Vector2 size, int valueFontSize = 22)
         {
             return CreateInternal(anchor, "Counter", null, offset, size, valueFontSize, withValue: true, showTitle: false);
+        }
+
+        /// <summary>A HUD panel pinned to a fixed corner/edge of the screen (0-1 anchor, pixel offset from it) —
+        /// does not follow any world-space object.</summary>
+        public static WorldAnchoredUi CreateLabeledScreenAnchored(
+            string title,
+            string subtitle,
+            Vector2 screenAnchor,
+            Vector2 screenOffset,
+            Vector2 size,
+            int valueFontSize = 24)
+        {
+            var ui = CreateInternal(null, title, null, Vector3.zero, size, 14, withValue: true, showTitle: true);
+            ui.useScreenAnchor = true;
+            ui.screenAnchor01 = screenAnchor;
+            ui.screenOffsetPixels = screenOffset;
+            ui.BuildSubtitle(subtitle);
+            if (ui.valueText != null)
+                ui.valueText.fontSize = valueFontSize;
+            ui.ApplyScreenAnchorPosition();
+            return ui;
         }
 
         static WorldAnchoredUi CreateInternal(
@@ -245,7 +269,10 @@ namespace LegendsOfTheUniverse.Presentation
 
         void LateUpdate()
         {
-            if (panelRect == null || worldAnchor == null)
+            if (panelRect == null || useScreenAnchor)
+                return;
+
+            if (worldAnchor == null)
                 return;
 
             var camera = Camera.main;
@@ -257,6 +284,17 @@ namespace LegendsOfTheUniverse.Presentation
 
             gameObject.SetActive(true);
             panelRect.position = camera.WorldToScreenPoint(worldAnchor.position + worldOffset);
+        }
+
+        /// <summary>Pins the panel to a fixed corner/edge via real RectTransform anchoring (not a raw
+        /// Screen.width/height position poll), so it stays correctly placed and sized under the
+        /// CanvasScaler regardless of the actual window resolution. Set once; Unity's layout keeps it put.</summary>
+        void ApplyScreenAnchorPosition()
+        {
+            panelRect.anchorMin = screenAnchor01;
+            panelRect.anchorMax = screenAnchor01;
+            panelRect.pivot = new Vector2(0.5f, 0.5f);
+            panelRect.anchoredPosition = screenOffsetPixels;
         }
 
         void OnDestroy()
