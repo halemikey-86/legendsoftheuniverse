@@ -492,6 +492,14 @@ namespace Willbound.Engine
             var kind = action.StoreKind ?? MapStoreKind(action.Kind);
             var paidWorth = action.PaidWorth;
 
+            if (kind == StoreActionKind.Sell)
+            {
+                if (!action.HandCardInstanceId.HasValue)
+                    return "No card selected to sell.";
+                if (player.BoughtThisTurn.Contains(action.HandCardInstanceId.Value))
+                    return "Cannot sell a card you just bought this turn.";
+            }
+
             if (kind == StoreActionKind.Row && player.Worth < 2)
                 return "Row costs 2 Worth.";
 
@@ -675,6 +683,49 @@ namespace Willbound.Engine
                             card.Zone = Zone.Hand;
                             card.ControllerId = player.Id;
                             player.Hand.Add(card);
+                            player.BoughtThisTurn.Add(card.InstanceId);
+                            Emit(EventKind.WorthChanged, "player", player.Id, "delta", -card.Printing.StoreWorth);
+                        }
+                    }
+                    break;
+                case StoreActionKind.Sell:
+                    if (obj.HandCardInstanceId.HasValue)
+                    {
+                        CardInstance card = null;
+                        for (var i = 0; i < player.Hand.Count; i++)
+                        {
+                            if (player.Hand[i].InstanceId == obj.HandCardInstanceId.Value)
+                            {
+                                card = player.Hand[i];
+                                break;
+                            }
+                        }
+
+                        if (card != null)
+                        {
+                            player.Hand.Remove(card);
+                            player.Worth += 1;
+
+                            var placed = false;
+                            for (var i = 0; i < Match.Store.Length; i++)
+                            {
+                                if (Match.Store[i] == null)
+                                {
+                                    Match.Store[i] = card;
+                                    card.Zone = Zone.Store;
+                                    card.ControllerId = -1;
+                                    placed = true;
+                                    break;
+                                }
+                            }
+
+                            if (!placed)
+                            {
+                                card.Zone = Zone.Supply;
+                                Match.Supply.Add(card);
+                            }
+
+                            Emit(EventKind.WorthChanged, "player", player.Id, "delta", 1);
                         }
                     }
                     break;
@@ -693,9 +744,6 @@ namespace Willbound.Engine
                 case StoreActionKind.Keep:
                     break;
             }
-
-            MatchSetup.RefillStore(Match, rng);
-            Emit(EventKind.WorthChanged, "player", player.Id, "delta", 0);
         }
 
         void LockClashAndResolve()

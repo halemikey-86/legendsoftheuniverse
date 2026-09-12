@@ -16,9 +16,19 @@ namespace LegendsOfTheUniverse.Presentation
         public ZoneView RelicBond { get; private set; }
         public ZoneView Deck { get; private set; }
         public ZoneView Banished { get; private set; }
-        public DialView WillRound { get; private set; }
+        public DialView Will { get; private set; }
         public DialView Worth { get; private set; }
         public DialView Honor { get; private set; }
+        public DialView Round { get; private set; }
+
+        // Screen-edge HUD layout: Honor top-left, Round top-center, Worth+Will clustered top-right.
+        static readonly Vector2 TopLeftAnchor = new(0f, 1f);
+        static readonly Vector2 TopCenterAnchor = new(0.5f, 1f);
+        static readonly Vector2 TopRightAnchor = new(1f, 1f);
+        static readonly Vector2 HonorOffset = new(90f, -50f);
+        static readonly Vector2 RoundOffset = new(0f, -50f);
+        static readonly Vector2 WorthOffset = new(-228f, -50f);
+        static readonly Vector2 WillOffset = new(-90f, -50f);
 
         public static PlaymatZonesView Instance { get; private set; }
 
@@ -73,9 +83,10 @@ namespace LegendsOfTheUniverse.Presentation
             RelicBond = null;
             Deck = null;
             Banished = null;
-            WillRound = null;
+            Will = null;
             Worth = null;
             Honor = null;
+            Round = null;
         }
 
         void BuildZones()
@@ -90,9 +101,10 @@ namespace LegendsOfTheUniverse.Presentation
             Deck = CreatePileZone("Deck", PlaymatZones.Deck, pileStackRotation: CardView.StackRotation);
             Banished = CreatePileZone("Banished", PlaymatZones.Banished);
 
-            WillRound = CreateDial(DialKind.WillRound, PlaymatZones.WillRoundTrack);
-            Worth = CreateDial(DialKind.Worth, PlaymatZones.Worth);
-            Honor = CreateDial(DialKind.Honor, PlaymatZones.Honor);
+            Honor = CreateDial(DialKind.Honor, TopLeftAnchor, HonorOffset);
+            Round = CreateDial(DialKind.Round, TopCenterAnchor, RoundOffset);
+            Worth = CreateDial(DialKind.Worth, TopRightAnchor, WorthOffset);
+            Will = CreateDial(DialKind.Will, TopRightAnchor, WillOffset);
         }
 
         ZoneView CreateSlotZone(string label, Vector3 center, int slotCount)
@@ -119,14 +131,13 @@ namespace LegendsOfTheUniverse.Presentation
             return zone;
         }
 
-        DialView CreateDial(DialKind kind, Vector3 position)
+        DialView CreateDial(DialKind kind, Vector2 screenAnchor, Vector2 screenOffset)
         {
             var dialObject = new GameObject(kind + "Dial");
             dialObject.transform.SetParent(transform, false);
-            dialObject.transform.position = position;
 
             var dial = dialObject.AddComponent<DialView>();
-            dial.Configure(kind, position);
+            dial.Configure(kind, screenAnchor, screenOffset);
             return dial;
         }
 
@@ -142,12 +153,12 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void SetRound(int round)
         {
-            WillRound?.SetRound(round);
+            Round?.SetRound(round);
         }
 
         public void SetWillPool(int will)
         {
-            WillRound?.SetWillPool(will);
+            Will?.SetWillPool(will);
         }
 
         public void SetWorth(int worth)

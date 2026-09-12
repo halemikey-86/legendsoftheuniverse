@@ -102,6 +102,19 @@ namespace LegendsOfTheUniverse.Presentation
         public CardView GetOpeningHandCardAt(int index) =>
             index >= 0 && index < handCards.Count ? handCards[index] : null;
         public bool ContainsHandCard(CardView card) => card != null && handCards.Contains(card);
+
+        /// <summary>Pulls a card out of hand bookkeeping without destroying it (e.g. for a pending Sell).
+        /// Pair with <see cref="ReattachHandCard"/> to put it back if the action turns out illegal.</summary>
+        public bool DetachHandCard(CardView card) => card != null && handCards.Remove(card);
+
+        public void ReattachHandCard(CardView card)
+        {
+            if (card != null && !handCards.Contains(card))
+                handCards.Add(card);
+        }
+
+        public void RelayoutHand() => StartCoroutine(LayoutKeptHandRoutine());
+
         public bool IsDragging => draggingCard != null;
         public bool CanClickCards => handKept && !IsDealing;
         public bool CanReorderCards =>
@@ -263,6 +276,26 @@ namespace LegendsOfTheUniverse.Presentation
                 card?.SetClickable(true);
 
             IsDealing = false;
+        }
+
+        /// <summary>Discards the whole opening hand back to supply and deals a fresh one (a full mulligan,
+        /// as opposed to <see cref="RedrawOpeningCardRoutine"/>'s one-card-at-a-time redraw).</summary>
+        public IEnumerator MulliganOpeningHandRoutine(Vector3 deckPosition)
+        {
+            if (handKept || IsDealing)
+                yield break;
+
+            var fronts = new List<Texture2D>(handCards.Count);
+            for (var i = 0; i < handCards.Count; i++)
+            {
+                if (handCards[i]?.FrontTexture != null)
+                    fronts.Add(handCards[i].FrontTexture);
+            }
+
+            if (fronts.Count > 0)
+                CardDeck.ReturnManyToSupplyAndShuffle(fronts);
+
+            yield return DealOpeningHandRoutine(deckPosition);
         }
 
         public IEnumerator RedrawOpeningCardRoutine(
@@ -538,11 +571,27 @@ namespace LegendsOfTheUniverse.Presentation
                 return;
             }
 
-            var fieldCount = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId).Field.Count;
+            var canPlay = matchBridge.CanPlayCard(card.EngineCardInstanceId.Value);
+            var player = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId);
+            if (IsWillSite(card))
+            {
+                var wellCount = player.Willwell.Count;
+                ShowFieldSlotHighlight(PlaymatZones.GetWillwellSlot(wellCount), canPlay && wellCount < PlaymatZones.WillwellSlotCount);
+                return;
+            }
+
+            var fieldCount = player.Field.Count;
             if (fieldCount >= PlaymatZones.FieldSlotCount)
                 ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(PlaymatZones.FieldSlotCount - 1), false);
             else
-                ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(fieldCount), true);
+                ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(fieldCount), canPlay);
+        }
+
+        static bool IsWillSite(CardView card)
+        {
+            if (card.BoundPrinting != null)
+                return card.BoundPrinting.Type == CardType.WillSite;
+            return false;
         }
 
         void ShowFieldSlotHighlight(Vector3 worldPosition, bool legal)

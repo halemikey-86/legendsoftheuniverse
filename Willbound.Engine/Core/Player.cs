@@ -21,6 +21,9 @@ namespace Willbound.Engine
         public bool DeclaredClashThisTurn;
         public HashSet<string> OncePerGameFlags = new HashSet<string>();
 
+        /// <summary>Instance ids bought from the Store this turn — cannot be Sold back until next turn.</summary>
+        public HashSet<int> BoughtThisTurn = new HashSet<int>();
+
         public bool IsAlive => !Lost && Icon != null && Icon.CurrentHealth > 0;
     }
 }

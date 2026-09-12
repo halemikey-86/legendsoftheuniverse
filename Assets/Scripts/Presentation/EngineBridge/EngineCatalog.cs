@@ -16,7 +16,15 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
     public static class EngineCatalog
     {
         const string CardsFolder = "Cards";
-        const string DefaultDeckSetCode = "GK"; // The Goblin King — has explicit qty/deckSize metadata.
+        const string DefaultDeckFile = "WILLBOUND_Goblin_King_cards.json"; // Fallback when the chosen Icon has no deck file of its own.
+
+        /// <summary>Maps a hero Icon's printing id to the deck file its companions/relics/etc. live in.</summary>
+        static readonly Dictionary<string, string> DeckFileByIconId = new(StringComparer.OrdinalIgnoreCase)
+        {
+            { "gk-01", "WILLBOUND_Goblin_King_cards.json" },
+            { "rp-01", "WILLBOUND_Rise_of_Pride_cards.json" },
+            { "rm-01", "WILLBOUND_River_Merchant_cards.json" },
+        };
 
         /// <summary>Maps a compact-schema source file to the Assets/Cards art subfolder that matches it by name.</summary>
         static readonly Dictionary<string, string> ArtFolderBySourceFile = new()
@@ -297,9 +305,9 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         static int? GetNullableInt(JsonElement el, string name) =>
             el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.Number ? prop.GetInt32() : (int?)null;
 
-        public static List<string> DefaultDeck(int count = 30, string fallbackCardId = "VANILLA-COMPANION")
+        public static List<string> DefaultDeck(string iconId, int count = 30, string fallbackCardId = "VANILLA-COMPANION")
         {
-            var pool = BuildDefaultDeckPool();
+            var pool = BuildDefaultDeckPool(iconId);
             if (pool.Count == 0)
             {
                 var legacy = new List<string>(count);
@@ -316,9 +324,12 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             return result;
         }
 
-        static List<string> BuildDefaultDeckPool()
+        static List<string> BuildDefaultDeckPool(string iconId)
         {
-            var path = Path.Combine(Application.streamingAssetsPath, CardsFolder, "WILLBOUND_Goblin_King_cards.json");
+            var fileName = !string.IsNullOrEmpty(iconId) && DeckFileByIconId.TryGetValue(iconId, out var mapped)
+                ? mapped
+                : DefaultDeckFile;
+            var path = Path.Combine(Application.streamingAssetsPath, CardsFolder, fileName);
             if (!File.Exists(path))
                 return new List<string>();
 

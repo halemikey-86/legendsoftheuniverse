@@ -35,7 +35,7 @@ namespace Willbound.Table
             if (amount <= 0)
                 return;
 
-            StartCoroutine(PaymentRoutine(amount, cardWorldPosition, PlaymatZones.WillRoundTrack, false));
+            StartCoroutine(PaymentRoutine(amount, worth: false));
         }
 
         public void PlayWorthPayment(int amount, Vector3 cardWorldPosition)
@@ -43,7 +43,7 @@ namespace Willbound.Table
             if (amount <= 0)
                 return;
 
-            StartCoroutine(PaymentRoutine(amount, cardWorldPosition, PlaymatZones.Worth, true));
+            StartCoroutine(PaymentRoutine(amount, worth: true));
         }
 
         public void PlayWillRefund(int amount, Vector3 fromCardWorldPosition)
@@ -51,36 +51,22 @@ namespace Willbound.Table
             if (amount <= 0)
                 return;
 
-            StartCoroutine(RefundRoutine(amount, fromCardWorldPosition, PlaymatZones.WillRoundTrack));
+            StartCoroutine(RefundRoutine(amount));
         }
 
-        IEnumerator PaymentRoutine(int amount, Vector3 target, Vector3 poolAnchor, bool worth)
+        IEnumerator PaymentRoutine(int amount, bool worth)
         {
-            var start = poolAnchor;
-            var end = target + Vector3.up * 0.05f;
-            var elapsed = 0f;
-
-            while (elapsed < paymentDuration)
-            {
-                elapsed += Time.deltaTime;
-                var t = Mathf.SmoothStep(0f, 1f, elapsed / paymentDuration);
-                // v1: pool dial ticks; full coin mesh can be added per set theme.
-                _ = Vector3.Lerp(start, end, t);
-                yield return null;
-            }
+            // v1: pool dial ticks after a beat; full coin-flight cinema (toward the screen-anchored
+            // Will/Worth HUD) can be added per set theme.
+            yield return new WaitForSeconds(paymentDuration);
 
             if (!worth)
                 SetWill(Mathf.Max(0, displayedWill - amount));
         }
 
-        IEnumerator RefundRoutine(int amount, Vector3 fromCard, Vector3 poolAnchor)
+        IEnumerator RefundRoutine(int amount)
         {
-            var elapsed = 0f;
-            while (elapsed < paymentDuration)
-            {
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
+            yield return new WaitForSeconds(paymentDuration);
 
             SetWill(displayedWill + amount);
         }
