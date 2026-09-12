@@ -64,7 +64,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (iconCard == null || card != iconCard)
                 return;
 
-            if (IsClashDeclare())
+            if (TryClashPress(card))
                 return;
 
             if (inspecting)
@@ -121,13 +121,25 @@ namespace LegendsOfTheUniverse.Presentation
             iconCard = null;
         }
 
-        static bool IsClashDeclare()
+        static bool TryClashPress(CardView card)
         {
             var bridge = FindAnyObjectByType<TableMatchBridge>();
             if (bridge == null || !bridge.IsActive)
                 return false;
-            return bridge.Runner.Match.Phase == Phase.Clash
-                && bridge.Runner.Match.ClashPhase == ClashPhase.C1_ActiveDeclare;
+            if (bridge.Runner.Match.Phase != Phase.Clash
+                || bridge.Runner.Match.ClashPhase != ClashPhase.C1_ActiveDeclare)
+                return false;
+
+            var instanceId = card.EngineCardInstanceId ?? 0;
+            if (instanceId <= 0)
+                return true;
+
+            var tableRoot = FindAnyObjectByType<Willbound.Table.TableRoot>();
+            if (tableRoot != null)
+                tableRoot.HandleClashCardClicked(instanceId);
+            else
+                bridge.TryDeclarePress(instanceId, null, out _);
+            return true;
         }
     }
 }

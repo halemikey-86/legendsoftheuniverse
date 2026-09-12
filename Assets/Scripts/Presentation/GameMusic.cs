@@ -15,7 +15,7 @@ namespace LegendsOfTheUniverse.Presentation
         {
             var fromResources = Resources.Load<AudioClip>($"Sounds/{clipName}");
             if (fromResources != null)
-                return fromResources;
+                return Prepare(fromResources);
 
 #if UNITY_EDITOR
             foreach (var extension in new[] { ".mp3", ".wav" })
@@ -23,13 +23,34 @@ namespace LegendsOfTheUniverse.Presentation
                 var path = $"Assets/Sounds/{clipName}{extension}";
                 var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
                 if (clip != null)
-                    return clip;
+                    return Prepare(clip);
             }
 
-            return AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Resources/Sounds/{clipName}.mp3");
+            return Prepare(AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Resources/Sounds/{clipName}.mp3"));
 #else
             return null;
 #endif
+        }
+
+        public static AudioClip Prepare(AudioClip clip)
+        {
+            if (clip == null)
+                return null;
+
+            if (clip.loadState == AudioDataLoadState.Unloaded)
+                clip.LoadAudioData();
+
+            return clip;
+        }
+
+        public static System.Collections.IEnumerator WaitUntilReady(AudioClip clip)
+        {
+            if (clip == null)
+                yield break;
+
+            Prepare(clip);
+            while (clip.loadState == AudioDataLoadState.Loading)
+                yield return null;
         }
     }
 }

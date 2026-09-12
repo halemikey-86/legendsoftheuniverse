@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation;
 using UnityEngine;
@@ -292,11 +293,23 @@ namespace LegendsOfTheUniverse.Presentation.Menu
 
         void PlayMenuMusic()
         {
+            StartCoroutine(PlayMenuMusicRoutine());
+        }
+
+        IEnumerator PlayMenuMusicRoutine()
+        {
             var clip = LoadMenuMusic();
             if (clip == null)
-                return;
+                yield break;
 
-            musicSource = gameObject.AddComponent<AudioSource>();
+            yield return GameMusic.WaitUntilReady(clip);
+            if (clip.loadState != AudioDataLoadState.Loaded)
+                yield break;
+
+            AudioListenerBootstrap.EnsureExists();
+            if (musicSource == null)
+                musicSource = gameObject.AddComponent<AudioSource>();
+
             musicSource.clip = clip;
             musicSource.loop = true;
             musicSource.playOnAwake = false;

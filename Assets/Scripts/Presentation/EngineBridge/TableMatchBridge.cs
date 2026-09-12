@@ -256,6 +256,85 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             return TryPassPriority(out error);
         }
 
+        public bool TryDeclarePress(int attackerInstanceId, int? targetInstanceId, out string error)
+        {
+            error = null;
+            if (!IsActive)
+            {
+                error = "Engine not active.";
+                return false;
+            }
+
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var match = runner.Match;
+            if (match.Phase != Phase.Clash || match.ClashPhase != ClashPhase.C1_ActiveDeclare)
+            {
+                error = "Press is only available during Clash declare.";
+                return false;
+            }
+
+            if (targetInstanceId == null || targetInstanceId.Value <= 0)
+                targetInstanceId = DefaultPressTargetId();
+
+            if (targetInstanceId == null)
+            {
+                error = "No legal Press target.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
+            {
+                Kind = PlayerActionKind.DeclarePress,
+                PlayerId = localPlayerId,
+                CardInstanceId = attackerInstanceId,
+                TargetInstanceId = targetInstanceId,
+            });
+
+            if (!result.Success)
+            {
+                error = result.Error;
+                EngineError?.Invoke(error);
+                return false;
+            }
+
+            PublishResult(result);
+            KickNonLocalActors();
+            return true;
+        }
+
+        public int? DefaultPressTargetId()
+        {
+            if (!IsActive)
+                return null;
+
+            var opponent = runner.Match.GetPlayer(localPlayerId == 0 ? 1 : 0);
+            if (opponent?.Icon != null && opponent.Icon.CurrentHealth > 0)
+                return opponent.Icon.InstanceId;
+
+            if (opponent?.Field == null)
+                return null;
+
+            CardInstance best = null;
+            for (var i = 0; i < opponent.Field.Count; i++)
+            {
+                var body = opponent.Field[i];
+                if (body == null || body.CurrentHealth <= 0)
+                    continue;
+                var type = body.Printing?.Type;
+                if (type != CardType.Icon && type != CardType.Companion && type != CardType.Token)
+                    continue;
+                if (best == null || body.CurrentHealth < best.CurrentHealth)
+                    best = body;
+            }
+
+            return best?.InstanceId;
+        }
+
         public bool CanPlayCard(int cardInstanceId)
         {
             if (!IsActive)
@@ -433,47 +512,6 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             return true;
         }
 
-        public bool TryStoreSell(int handCardInstanceId, out string error)
-        {
-            error = null;
-            if (!IsActive)
-            {
-                error = "Engine not active.";
-                return false;
-            }
-
-            if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
-            {
-                error = "Store actions are only available during your Main phase (once per turn).";
-                return false;
-            }
-
-            if (botActing)
-            {
-                error = "Opponent is acting.";
-                return false;
-            }
-
-            var result = ApplyThenAdvance(new PlayerAction
-            {
-                Kind = PlayerActionKind.StoreSell,
-                PlayerId = localPlayerId,
-                HandCardInstanceId = handCardInstanceId,
-                StoreKind = StoreActionKind.Sell,
-            });
-
-            if (!result.Success)
-            {
-                error = result.Error;
-                EngineError?.Invoke(error);
-                return false;
-            }
-
-            PublishResult(result);
-            KickNonLocalActors();
-            return true;
-        }
-
         ApplyResult ApplyThenAdvance(PlayerAction action)
         {
             return runner.Apply(action);
@@ -538,7 +576,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 if (!passResult.Success)
                     break;
 
-                ProcessEvents(passResult.Events);
+                PublishResult(passResult);
             }
         }
 

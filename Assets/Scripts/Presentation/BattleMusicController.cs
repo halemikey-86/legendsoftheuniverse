@@ -15,15 +15,21 @@ namespace LegendsOfTheUniverse.Presentation
         void Awake()
         {
             Menu.GameSettings.ApplyAll();
+            AudioListenerBootstrap.EnsureExists();
             musicSource = gameObject.AddComponent<AudioSource>();
             musicSource.playOnAwake = false;
             musicSource.spatialBlend = 0f;
+            musicSource.loop = false;
             UpdateVolume();
             StartCoroutine(PlayBattleMusicRoutine());
         }
 
         IEnumerator PlayBattleMusicRoutine()
         {
+            yield return null;
+            AudioListenerBootstrap.EnsureExists();
+            UpdateVolume();
+
             var intro = GameMusic.Load(GameMusic.BattleIntroTheme);
             var loop = GameMusic.Load(GameMusic.BattleLoopTheme);
 
@@ -35,18 +41,34 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (intro != null)
             {
-                musicSource.clip = intro;
-                musicSource.loop = false;
-                musicSource.Play();
-                yield return new WaitWhile(() => musicSource.isPlaying);
+                yield return GameMusic.WaitUntilReady(intro);
+                if (intro.loadState == AudioDataLoadState.Loaded)
+                {
+                    musicSource.clip = intro;
+                    musicSource.loop = false;
+                    UpdateVolume();
+                    musicSource.Play();
+                    while (musicSource != null && musicSource.isPlaying)
+                        yield return null;
+                }
             }
 
             if (loop == null)
                 yield break;
 
+            yield return GameMusic.WaitUntilReady(loop);
+            if (loop.loadState != AudioDataLoadState.Loaded)
+                yield break;
+
             musicSource.clip = loop;
             musicSource.loop = true;
+            UpdateVolume();
             musicSource.Play();
+        }
+
+        void LateUpdate()
+        {
+            UpdateVolume();
         }
 
         void UpdateVolume()

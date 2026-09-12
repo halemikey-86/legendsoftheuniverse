@@ -45,6 +45,8 @@ namespace Willbound.Table
         int opponentIconInstanceId = -1;
         int damageToLocalIconThisClash;
         int damageToEnemyIconThisClash;
+        int preferredPressTargetId = -1;
+        TableMatchBridge subscribedBridge;
 
         public bool IsMatchTableEnabled => matchTableEnabled;
 
@@ -54,17 +56,9 @@ namespace Willbound.Table
             BuildDropZones();
         }
 
-        void OnEnable()
-        {
-            if (matchBridge != null)
-                matchBridge.EngineEventsApplied += OnEngineEvents;
-        }
+        void OnEnable() => SubscribeBridge();
 
-        void OnDisable()
-        {
-            if (matchBridge != null)
-                matchBridge.EngineEventsApplied -= OnEngineEvents;
-        }
+        void OnDisable() => UnsubscribeBridge();
 
         void ResolveReferences()
         {
@@ -110,6 +104,44 @@ namespace Willbound.Table
 
             if (binder != null && actionHost != null)
                 binder.BindHost(actionHost);
+
+            SubscribeBridge();
+        }
+
+        void SubscribeBridge()
+        {
+            if (matchBridge == null)
+                matchBridge = GetComponent<TableMatchBridge>();
+            if (matchBridge == subscribedBridge)
+                return;
+
+            UnsubscribeBridge();
+            if (matchBridge == null)
+                return;
+
+            matchBridge.EngineEventsApplied += OnEngineEvents;
+            matchBridge.PhaseStateChanged += OnPhaseStateChanged;
+            subscribedBridge = matchBridge;
+        }
+
+        void UnsubscribeBridge()
+        {
+            if (subscribedBridge == null)
+                return;
+
+            subscribedBridge.EngineEventsApplied -= OnEngineEvents;
+            subscribedBridge.PhaseStateChanged -= OnPhaseStateChanged;
+            subscribedBridge = null;
+        }
+
+        void OnPhaseStateChanged(LegendsOfTheUniverse.Rules.TurnStep _, bool __)
+        {
+            if (!matchTableEnabled || matchBridge == null || !matchBridge.IsActive)
+                return;
+
+            binder?.RefreshSnapshot();
+            SyncEngineFieldViews();
+            RefreshIconLifeFromMatch();
         }
 
         public void EnableMatchTable()
@@ -129,9 +161,47 @@ namespace Willbound.Table
                 }
             }
 
+            SubscribeBridge();
             binder?.RefreshSnapshot();
             SyncEngineHandViews();
             SyncEngineFieldViews();
+            RefreshIconLifeFromMatch();
+        }
+
+        public void HandleClashCardClicked(int instanceId)
+        {
+            if (!matchTableEnabled || matchBridge == null || !matchBridge.IsActive || instanceId <= 0)
+                return;
+            if (dragAgent != null && dragAgent.IsDragging)
+                return;
+
+            binder?.RefreshSnapshot();
+            var snap = binder != null ? binder.Snapshot : null;
+            if (snap == null || snap.ClashPhase != ClashPhase.C1_ActiveDeclare)
+                return;
+
+            if (binder.IsBodyInDeclareQueue(instanceId))
+            {
+                var targetId = preferredPressTargetId > 0 ? preferredPressTargetId : (int?)null;
+                if (targetId != null && !binder.IsLegalPressTarget(instanceId, targetId.Value))
+                    targetId = null;
+                matchBridge.TryDeclarePress(instanceId, targetId, out _);
+                preferredPressTargetId = -1;
+                return;
+            }
+
+            if (snap.PriorityPlayerId != snap.LocalPlayerId)
+                return;
+
+            for (var i = 0; i < snap.OpponentField.Count; i++)
+            {
+                var card = snap.OpponentField[i];
+                if (card == null || card.InstanceId != instanceId)
+                    continue;
+                if (card.Type is CardType.Icon or CardType.Companion or CardType.Token)
+                    preferredPressTargetId = instanceId;
+                return;
+            }
         }
 
         void BuildDropZones()
@@ -361,6 +431,8 @@ namespace Willbound.Table
                 if (view == null)
                     continue;
 
+                AttachClashClick(view);
+
                 Vector3 pos;
                 if (card.Type == CardType.Icon)
                     pos = isLocal ? PlaymatZones.Icon : PlaymatZones.OpponentIcon;
@@ -444,6 +516,7 @@ namespace Willbound.Table
                 binder.RegisterCardView(card.InstanceId, localIcon);
                 iconSlotView.IconCard.SetEngineCardInstanceId(card.InstanceId);
                 iconSlotView.IconCard.SetClickable(true);
+                AttachClashClick(localIcon);
                 return localIcon;
             }
 
@@ -462,6 +535,7 @@ namespace Willbound.Table
             ApplyFieldCardArt(shell, card);
             shell.SetFaceUpImmediate(true);
             shell.SetClickable(true);
+            AttachClashClick(view);
             return view;
         }
 
@@ -496,7 +570,18 @@ namespace Willbound.Table
             var clickHandler = played.GetComponent<CardClickHandler>();
             if (clickHandler != null)
                 Destroy(clickHandler);
+            AttachClashClick(adopted);
             return true;
+        }
+
+        void AttachClashClick(Willbound.Table.CardView view)
+        {
+            if (view == null)
+                return;
+
+            var handler = view.GetComponent<ClashPressClickHandler>()
+                ?? view.gameObject.AddComponent<ClashPressClickHandler>();
+            handler.Init(this);
         }
 
         void BindIconLife(CardSnapshot card, Willbound.Table.CardView view, bool isLocal)
@@ -564,24 +649,32 @@ namespace Willbound.Table
 
         void HandleDamageDealt(GameEvent e)
         {
-            if (!TryInt(e, "target", out var targetId) || !TryInt(e, "amount", out var amount) || amount <= 0)
+            if (!TryInt(e, "target", out var targetId) || !TryInt(e, "amount", out var amount) || amount < 0)
                 return;
             if (matchBridge == null || !matchBridge.IsActive)
                 return;
 
             var target = matchBridge.Runner.Match.GetCard(targetId);
-            if (target?.Printing == null || target.Printing.Type != CardType.Icon)
+            if (target?.Printing == null)
+                return;
+
+            if (binder != null && binder.TryGetCardView(targetId, out var targetView))
+                targetView.SetHealth(target.CurrentHealth, target.Health);
+
+            if (target.Printing.Type != CardType.Icon)
                 return;
 
             if (targetId == localIconInstanceId || target.ControllerId == matchBridge.LocalPlayerId)
             {
-                damageToLocalIconThisClash += amount;
+                if (amount > 0)
+                    damageToLocalIconThisClash += amount;
                 localIconLife?.SetClashTaken(damageToLocalIconThisClash);
                 localIconLife?.SetHealth(target.CurrentHealth, target.Health);
             }
             else
             {
-                damageToEnemyIconThisClash += amount;
+                if (amount > 0)
+                    damageToEnemyIconThisClash += amount;
                 opponentIconLife?.SetClashTaken(damageToEnemyIconThisClash);
                 opponentIconLife?.SetHealth(target.CurrentHealth, target.Health);
             }

@@ -124,12 +124,14 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (matchBridge == null)
                 matchBridge = GetComponent<TableMatchBridge>();
+            if (matchBridge == null)
+                matchBridge = gameObject.AddComponent<TableMatchBridge>();
             if (tableRoot == null)
                 tableRoot = GetComponent<TableRoot>();
             if (tableRoot == null)
                 tableRoot = gameObject.AddComponent<TableRoot>();
-            if (matchBridge == null)
-                matchBridge = gameObject.AddComponent<TableMatchBridge>();
+            if (GetComponent<BattleMusicController>() == null)
+                gameObject.AddComponent<BattleMusicController>();
 
             if (storeActions == null)
                 storeActions = gameObject.AddComponent<StoreActionController>();

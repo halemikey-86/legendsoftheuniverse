@@ -873,17 +873,22 @@ namespace Willbound.Engine
             var guard = DamageMath.EffectiveGuard(target, Match);
             var absolute = press.Keywords.Contains(Keyword.Absolute);
             var damage = DamageMath.ComputeDamage(strike, guard, absolute);
+            if (damage > 0)
+            {
+                target.DamageMarked += damage;
+                press.DamageDealt = damage;
+            }
+
+            Emit(EventKind.DamageDealt, "source", source.InstanceId, "target", target.InstanceId, "amount", damage, "wave", press.Wave, "absolute", absolute);
+            Emit(EventKind.HealthChanged, "instanceId", target.InstanceId, "current", target.CurrentHealth, "printed", target.Health);
+
             if (damage <= 0)
                 return;
 
-            var before = target.CurrentHealth;
-            target.DamageMarked += damage;
-            press.DamageDealt = damage;
-            Emit(EventKind.DamageDealt, "source", source.InstanceId, "target", target.InstanceId, "amount", damage, "wave", press.Wave, "absolute", absolute);
-
-            if (press.Keywords.Contains(Keyword.Gashing) && target.Printing.Type == CardType.Companion && damage > 0)
+            if (press.Keywords.Contains(Keyword.Gashing) && target.Printing.Type == CardType.Companion)
             {
                 target.DamageMarked = target.Health;
+                Emit(EventKind.HealthChanged, "instanceId", target.InstanceId, "current", target.CurrentHealth, "printed", target.Health);
             }
 
             if (target.CurrentHealth <= 0)
@@ -929,6 +934,7 @@ namespace Willbound.Engine
                 var iconDamage = DamageMath.ComputeDamage(leftover, icon.Guard, false);
                 icon.DamageMarked += iconDamage;
                 Emit(EventKind.DamageDealt, "source", press.SourceInstanceId, "target", icon.InstanceId, "amount", iconDamage, "wave", -1, "absolute", false);
+                Emit(EventKind.HealthChanged, "instanceId", icon.InstanceId, "current", icon.CurrentHealth, "printed", icon.Health);
             }
 
             RunChecks();

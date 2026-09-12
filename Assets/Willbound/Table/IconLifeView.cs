@@ -20,9 +20,9 @@ namespace Willbound.Table
                     anchor,
                     title,
                     "Health",
-                    new Vector3(0f, 0.45f, -1.4f),
-                    new Vector2(176f, 96f),
-                    28);
+                    new Vector3(2.4f, 0.55f, 0f),
+                    new Vector2(200f, 108f),
+                    32);
             }
             else
             {
@@ -58,7 +58,12 @@ namespace Willbound.Table
                 return;
 
             ui.Value = $"{current}/{max}";
-            ui.Subtitle = clashTaken > 0 ? $"This Clash −{clashTaken}" : "Health";
+            if (clashTaken > 0)
+                ui.Subtitle = $"This Clash −{clashTaken}";
+            else if (current < max)
+                ui.Subtitle = $"Damaged (−{max - current})";
+            else
+                ui.Subtitle = "Health";
         }
 
         void OnDestroy()
