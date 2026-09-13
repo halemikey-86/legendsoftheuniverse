@@ -516,27 +516,45 @@ namespace Willbound.Engine
                 return "One Store action per turn."; // test 26
 
             var kind = action.StoreKind ?? MapStoreKind(action.Kind);
-            var paidWorth = action.PaidWorth;
+            var paidWorth = 0;
 
-            if (kind == StoreActionKind.Sell)
+            if (kind == StoreActionKind.Buy)
+            {
+                var card = StoreCardAt(action.StoreSlotIndex);
+                if (card == null)
+                    return "Empty store slot.";
+                var cost = card.Printing != null ? card.Printing.StoreWorth : 0;
+                if (player.Worth < cost)
+                    return "Insufficient Worth.";
+                paidWorth = PayWorth(player, cost);
+            }
+            else if (kind == StoreActionKind.Trade)
+            {
+                var storeCard = StoreCardAt(action.StoreSlotIndex);
+                var handCard = FindHandCard(player, action.HandCardInstanceId);
+                if (storeCard == null || handCard == null)
+                    return "Trade needs a hand card and a store card.";
+                var storeCost = storeCard.Printing != null ? storeCard.Printing.StoreWorth : 0;
+                var handCost = handCard.Printing != null ? handCard.Printing.StoreWorth : 0;
+                var extra = storeCost > handCost ? storeCost - handCost : 0;
+                if (player.Worth < extra)
+                    return "Insufficient Worth.";
+                paidWorth = PayWorth(player, extra);
+            }
+            else if (kind == StoreActionKind.Sell)
             {
                 if (!action.HandCardInstanceId.HasValue)
+                    return "No card selected to sell.";
+                if (FindHandCard(player, action.HandCardInstanceId) == null)
                     return "No card selected to sell.";
                 if (player.BoughtThisTurn.Contains(action.HandCardInstanceId.Value))
                     return "Cannot sell a card you just bought this turn.";
             }
-
-            if (kind == StoreActionKind.Row && player.Worth < 2)
-                return "Row costs 2 Worth.";
-
-            var rowCost = kind == StoreActionKind.Row ? 2 : 0;
-            if (rowCost > 0 && player.Worth < rowCost)
-                return "Row costs 2 Worth.";
-
-            if (rowCost > 0)
+            else if (kind == StoreActionKind.Row)
             {
-                player.Worth -= rowCost;
-                paidWorth = rowCost;
+                if (player.Worth < 2)
+                    return "Row costs 2 Worth.";
+                paidWorth = PayWorth(player, 2);
             }
 
             var stackObj = new StackObject
@@ -693,40 +711,77 @@ namespace Willbound.Engine
             }
         }
 
+        CardInstance StoreCardAt(int? slotIndex)
+        {
+            if (!slotIndex.HasValue || slotIndex.Value < 0 || slotIndex.Value >= Match.Store.Length)
+                return null;
+            return Match.Store[slotIndex.Value];
+        }
+
+        static CardInstance FindHandCard(Player player, int? instanceId)
+        {
+            if (player == null || !instanceId.HasValue)
+                return null;
+            for (var i = 0; i < player.Hand.Count; i++)
+            {
+                if (player.Hand[i].InstanceId == instanceId.Value)
+                    return player.Hand[i];
+            }
+
+            return null;
+        }
+
+        int PayWorth(Player player, int amount)
+        {
+            if (amount <= 0)
+                return 0;
+            player.Worth -= amount;
+            Emit(EventKind.WorthChanged, "player", player.Id, "delta", -amount);
+            return amount;
+        }
+
         void ResolveStore(StackObject obj)
         {
             var player = Match.GetPlayer(obj.ControllerId);
             switch (obj.StoreKind)
             {
                 case StoreActionKind.Buy:
-                    if (obj.StoreSlotIndex.HasValue && obj.StoreSlotIndex.Value >= 0 && obj.StoreSlotIndex.Value < Match.Store.Length)
                     {
-                        var card = Match.Store[obj.StoreSlotIndex.Value];
-                        if (card != null)
+                        var card = StoreCardAt(obj.StoreSlotIndex);
+                        if (card != null && obj.StoreSlotIndex.HasValue)
                         {
-                            player.Worth -= card.Printing.StoreWorth;
                             Match.Store[obj.StoreSlotIndex.Value] = null;
                             card.Zone = Zone.Hand;
                             card.ControllerId = player.Id;
                             player.Hand.Add(card);
                             player.BoughtThisTurn.Add(card.InstanceId);
-                            Emit(EventKind.WorthChanged, "player", player.Id, "delta", -card.Printing.StoreWorth);
+                            Emit(EventKind.CardMoved, "instanceId", card.InstanceId, "zone", Zone.Hand.ToString());
+                        }
+                    }
+                    break;
+                case StoreActionKind.Trade:
+                    {
+                        var storeCard = StoreCardAt(obj.StoreSlotIndex);
+                        var handCard = FindHandCard(player, obj.HandCardInstanceId);
+                        if (storeCard != null && handCard != null && obj.StoreSlotIndex.HasValue)
+                        {
+                            player.Hand.Remove(handCard);
+                            Match.Store[obj.StoreSlotIndex.Value] = handCard;
+                            handCard.Zone = Zone.Store;
+                            handCard.ControllerId = -1;
+
+                            storeCard.Zone = Zone.Hand;
+                            storeCard.ControllerId = player.Id;
+                            player.Hand.Add(storeCard);
+                            player.BoughtThisTurn.Add(storeCard.InstanceId);
+                            Emit(EventKind.CardMoved, "instanceId", storeCard.InstanceId, "zone", Zone.Hand.ToString());
+                            Emit(EventKind.CardMoved, "instanceId", handCard.InstanceId, "zone", Zone.Store.ToString());
                         }
                     }
                     break;
                 case StoreActionKind.Sell:
-                    if (obj.HandCardInstanceId.HasValue)
                     {
-                        CardInstance card = null;
-                        for (var i = 0; i < player.Hand.Count; i++)
-                        {
-                            if (player.Hand[i].InstanceId == obj.HandCardInstanceId.Value)
-                            {
-                                card = player.Hand[i];
-                                break;
-                            }
-                        }
-
+                        var card = FindHandCard(player, obj.HandCardInstanceId);
                         if (card != null)
                         {
                             player.Hand.Remove(card);
@@ -752,6 +807,7 @@ namespace Willbound.Engine
                             }
 
                             Emit(EventKind.WorthChanged, "player", player.Id, "delta", 1);
+                            Emit(EventKind.CardMoved, "instanceId", card.InstanceId, "zone", card.Zone.ToString());
                         }
                     }
                     break;

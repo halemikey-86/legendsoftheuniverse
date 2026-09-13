@@ -408,6 +408,57 @@ namespace Willbound.Engine.Tests
         }
 
         [Test]
+        public void Test33_StoreBuyPutsCardInHand()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            var beforeWorth = player.Worth;
+            var storeCard = runner.Match.Store[0];
+            Assert.That(storeCard, Is.Not.Null);
+            var cost = storeCard.Printing.StoreWorth;
+            var instanceId = storeCard.InstanceId;
+            var beforeHand = player.Hand.Count;
+
+            var announced = runner.Apply(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreBuy,
+                PlayerId = 0,
+                StoreSlotIndex = 0,
+                StoreKind = StoreActionKind.Buy,
+            });
+            Assert.That(announced.Success, Is.True, announced.Error);
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth - cost));
+            Assert.That(player.Hand.Count, Is.EqualTo(beforeHand));
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(player.Hand.Count, Is.EqualTo(beforeHand + 1));
+            Assert.That(runner.Match.Store[0], Is.Null);
+            Assert.That(player.Hand.Exists(c => c.InstanceId == instanceId), Is.True);
+        }
+
+        [Test]
+        public void Test34_StoreBuyRejectsInsufficientWorth()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            player.Worth = 0;
+            var result = runner.Apply(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreBuy,
+                PlayerId = 0,
+                StoreSlotIndex = 0,
+                StoreKind = StoreActionKind.Buy,
+            });
+            var storeCost = runner.Match.Store[0]?.Printing.StoreWorth ?? 0;
+            if (storeCost > 0)
+                Assert.That(result.Success, Is.False);
+        }
+
+        [Test]
         public void Test32_PriorityOrderAfterResolve()
         {
             var runner = TestHelpers.TwoPlayerMatch();

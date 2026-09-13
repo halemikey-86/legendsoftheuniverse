@@ -431,27 +431,23 @@
     ]
   },
   "packageFolders": {
-    "/Users/michaeljhale/.nuget/packages/": {}
+    "C:\\Users\\carte\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/Willbound.Engine.csproj",
+      "projectUniqueName": "F:\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
       "projectName": "Willbound.Engine",
-      "projectPath": "/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/Willbound.Engine.csproj",
-      "packagesPath": "/Users/michaeljhale/.nuget/packages/",
-      "outputPath": "/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/",
+      "projectPath": "F:\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
+      "packagesPath": "C:\\Users\\carte\\.nuget\\packages\\",
+      "outputPath": "F:\\git\\legendsoftheuniverse\\Willbound.Engine\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/michaeljhale/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\carte\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "netstandard2.1"
       ],
-      "sources": {
-        "/usr/local/share/dotnet/library-packs": {},
-        "https://api.nuget.org/v3/index.json": {}
-      },
       "frameworks": {
         "netstandard2.1": {
           "targetAlias": "netstandard2.1",
@@ -494,7 +490,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.404/RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.6.0f1\\Editor\\Data\\DotNetSdk\\sdk\\8.0.318\\RuntimeIdentifierGraph.json"
       }
     }
   }

@@ -431,47 +431,39 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
         public bool TryStoreBuy(int storeSlotIndex, out string error)
         {
-            error = null;
-            if (!IsActive)
-            {
-                error = "Engine not active.";
-                return false;
-            }
-
-            if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
-            {
-                error = "Store actions are only available during your Main phase (once per turn).";
-                return false;
-            }
-
-            if (botActing)
-            {
-                error = "Opponent is acting.";
-                return false;
-            }
-
-            var result = ApplyThenAdvance(new PlayerAction
+            return TryStoreAction(new PlayerAction
             {
                 Kind = PlayerActionKind.StoreBuy,
                 PlayerId = localPlayerId,
                 StoreSlotIndex = storeSlotIndex,
                 StoreKind = StoreActionKind.Buy,
-            });
-
-            if (!result.Success)
-            {
-                error = result.Error;
-                EngineError?.Invoke(error);
-                return false;
-            }
-
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
-            return true;
+            }, out error);
         }
 
         public bool TryStoreSell(int handCardInstanceId, out string error)
+        {
+            return TryStoreAction(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreSell,
+                PlayerId = localPlayerId,
+                HandCardInstanceId = handCardInstanceId,
+                StoreKind = StoreActionKind.Sell,
+            }, out error);
+        }
+
+        public bool TryStoreTrade(int storeSlotIndex, int handCardInstanceId, out string error)
+        {
+            return TryStoreAction(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreTrade,
+                PlayerId = localPlayerId,
+                StoreSlotIndex = storeSlotIndex,
+                HandCardInstanceId = handCardInstanceId,
+                StoreKind = StoreActionKind.Trade,
+            }, out error);
+        }
+
+        bool TryStoreAction(PlayerAction action, out string error)
         {
             error = null;
             if (!IsActive)
@@ -492,14 +484,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 return false;
             }
 
-            var result = ApplyThenAdvance(new PlayerAction
-            {
-                Kind = PlayerActionKind.StoreSell,
-                PlayerId = localPlayerId,
-                HandCardInstanceId = handCardInstanceId,
-                StoreKind = StoreActionKind.Sell,
-            });
-
+            var result = ApplyThenAdvance(action);
             if (!result.Success)
             {
                 error = result.Error;
@@ -508,8 +493,41 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
 
             PublishResult(result);
+            ResolveWaitingOwnStack();
             KickNonLocalActors();
             return true;
+        }
+
+        /// <summary>
+        /// Store actions sit on the stack. Auto-pass unanswered priority so Buy/Sell/Trade actually
+        /// resolve in the same click — matching how the bot already auto-yields your own plays.
+        /// </summary>
+        void ResolveWaitingOwnStack()
+        {
+            for (var i = 0; i < MaxAutoPasses; i++)
+            {
+                if (!IsActive || !OwnPlayWaitingToResolve(runner.Match))
+                    return;
+
+                var match = runner.Match;
+                var pid = match.PriorityPlayerId;
+                if (pid != localPlayerId && IsBotMatch)
+                {
+                    var response = bot.Choose(runner, pid);
+                    if (response.Kind != PlayerActionKind.Pass)
+                        return;
+                }
+
+                var pass = runner.Apply(new PlayerAction
+                {
+                    Kind = PlayerActionKind.Pass,
+                    PlayerId = pid,
+                });
+                if (!pass.Success)
+                    return;
+
+                PublishResult(pass);
+            }
         }
 
         ApplyResult ApplyThenAdvance(PlayerAction action)

@@ -9,3 +9,14 @@
 /Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Release/netstandard2.1/Willbound.Engine.sourcelink.json
 /Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Release/netstandard2.1/Willbound.Engine.dll
 /Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Release/netstandard2.1/Willbound.Engine.pdb
+F:\git\legendsoftheuniverse\Willbound.Engine\bin\Release\netstandard2.1\Willbound.Engine.deps.json
+F:\git\legendsoftheuniverse\Willbound.Engine\bin\Release\netstandard2.1\Willbound.Engine.dll
+F:\git\legendsoftheuniverse\Willbound.Engine\bin\Release\netstandard2.1\Willbound.Engine.pdb
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.csproj.AssemblyReference.cache
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.GeneratedMSBuildEditorConfig.editorconfig
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.AssemblyInfoInputs.cache
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.AssemblyInfo.cs
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.csproj.CoreCompileInputs.cache
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.sourcelink.json
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.dll
+F:\git\legendsoftheuniverse\Willbound.Engine\obj\Release\netstandard2.1\Willbound.Engine.pdb

@@ -36,7 +36,6 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] TurnFlowController turnFlow;
         [SerializeField] TableMatchBridge matchBridge;
         [SerializeField] TableRoot tableRoot;
-        MarketModalView marketModal;
 
         Text pickPromptText;
         Button keepButton;
@@ -47,6 +46,7 @@ namespace LegendsOfTheUniverse.Presentation
         Button tradeButton;
         Button nextPhaseButton;
         Button endTurnButton;
+        Image listViewButtonIcon;
         GameObject handUiRoot;
         bool matchStarted;
         bool mulliganUsed;
@@ -54,6 +54,7 @@ namespace LegendsOfTheUniverse.Presentation
         Sprite buyIcon;
         Sprite sellIcon;
         Sprite tradeIcon;
+        Sprite hideDeckIcon;
         Sprite nextPhaseIcon;
         Sprite endTurnIcon;
 
@@ -135,10 +136,6 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (storeActions == null)
                 storeActions = gameObject.AddComponent<StoreActionController>();
-            if (marketModal == null)
-                marketModal = GetComponent<MarketModalView>();
-            if (marketModal == null)
-                marketModal = gameObject.AddComponent<MarketModalView>();
 
             turnFlow.Configure(handView, playmatZones, storeView, SetPickPrompt);
             turnFlow.BindEngine(matchBridge);
@@ -382,16 +379,22 @@ namespace LegendsOfTheUniverse.Presentation
 
         void OnEngineEventsApplied(System.Collections.Generic.IReadOnlyList<Willbound.Engine.GameEvent> events)
         {
-            if (events == null || marketModal == null || !marketModal.IsVisible)
+            if (events == null || !matchStarted || matchBridge == null || !matchBridge.IsActive)
                 return;
 
+            var refill = false;
             for (var i = 0; i < events.Count; i++)
             {
-                if (events[i].Kind != Willbound.Engine.EventKind.TurnStarted)
-                    continue;
+                var kind = events[i].Kind;
+                if (kind == Willbound.Engine.EventKind.StoreRefilled || kind == Willbound.Engine.EventKind.TurnStarted)
+                    refill = true;
+            }
 
-                marketModal.Refresh();
-                break;
+            if (storeView != null)
+            {
+                storeView.ReconcileFromEngine(matchBridge.Runner.Match.Store);
+                if (refill && !storeView.IsDealing)
+                    StartCoroutine(storeView.BeginRoundRoutine(GetSupplyPosition(), matchBridge.Runner.Match.Store));
             }
         }
 
@@ -483,7 +486,18 @@ namespace LegendsOfTheUniverse.Presentation
             turnFlow?.BeginMatchAfterSetup();
 
             if (matchBridge != null && matchBridge.IsActive)
-                handView?.SyncHandFromEngine(matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId).Hand);
+            {
+                var local = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId);
+                if (local != null)
+                    handView?.SyncHandFromEngine(local.Hand);
+
+                if (storeView != null)
+                    yield return storeView.BeginRoundRoutine(GetSupplyPosition(), matchBridge.Runner.Match.Store);
+            }
+            else if (storeView != null)
+            {
+                yield return storeView.DealStoreRoutine(GetSupplyPosition());
+            }
 
             tableRoot?.EnableMatchTable();
             SetStoreButtonsVisible(true);
@@ -541,9 +555,33 @@ namespace LegendsOfTheUniverse.Presentation
                 image.color = interactable ? PhaseButtonEnabledTint : PhaseButtonDisabledTint;
         }
 
-        void OnMarketButtonClicked() => marketModal?.Toggle();
+        void OnMarketButtonClicked()
+        {
+            if (storeView == null)
+                return;
 
-        void OnBuyClicked() => marketModal?.Toggle();
+            if (!storeView.RoundStarted)
+            {
+                StartCoroutine(OpenStoreRoutine());
+                return;
+            }
+
+            var hideButton = listViewButton != null ? listViewButton.GetComponent<RectTransform>() : null;
+            storeView.ToggleRiverCollapse(GetSupplyPosition(), hideButton);
+            UpdateRiverToggleButtonIcon();
+        }
+
+        IEnumerator OpenStoreRoutine()
+        {
+            if (matchBridge != null && matchBridge.IsActive)
+                yield return storeView.BeginRoundRoutine(GetSupplyPosition(), matchBridge.Runner.Match.Store);
+            else
+                yield return storeView.DealStoreRoutine(GetSupplyPosition());
+
+            UpdateRiverToggleButtonIcon();
+        }
+
+        void OnBuyClicked() => SetStoreActionMode(StoreActionMode.Buy);
 
         void OnSellClicked() => SetStoreActionMode(StoreActionMode.Sell);
 
@@ -555,10 +593,21 @@ namespace LegendsOfTheUniverse.Presentation
             UpdateActionButtonHighlights();
         }
 
+        void UpdateRiverToggleButtonIcon()
+        {
+            if (listViewButtonIcon == null || hideDeckIcon == null)
+                return;
+
+            listViewButtonIcon.sprite = hideDeckIcon;
+        }
+
         void SetStoreButtonsVisible(bool visible)
         {
             if (listViewButton != null)
+            {
                 listViewButton.gameObject.SetActive(visible);
+                UpdateRiverToggleButtonIcon();
+            }
 
             if (buyButton != null)
                 buyButton.gameObject.SetActive(visible);
@@ -596,10 +645,11 @@ namespace LegendsOfTheUniverse.Presentation
             buyIcon = PlaymatUiSprites.Buy;
             sellIcon = PlaymatUiSprites.Sell;
             tradeIcon = PlaymatUiSprites.Trade;
+            hideDeckIcon = PlaymatUiSprites.HideDeck;
             nextPhaseIcon = PlaymatUiSprites.LabelNextPhase;
             endTurnIcon = PlaymatUiSprites.LabelEndTurn;
 
-            if (buyIcon == null || sellIcon == null || tradeIcon == null)
+            if (buyIcon == null || sellIcon == null || tradeIcon == null || hideDeckIcon == null)
                 Debug.LogWarning("HandFlowController: UI action symbols not found at Resources/UI/Icons/");
             if (nextPhaseIcon == null || endTurnIcon == null)
                 Debug.LogWarning("HandFlowController: Phase labels not found at Resources/UI/Labels/");
@@ -696,10 +746,10 @@ namespace LegendsOfTheUniverse.Presentation
                 handUiRoot.transform,
                 tableCamera,
                 legendaryPickView != null ? legendaryPickView.CardPrefab : null);
-            marketModal?.EnsureBuilt(handUiRoot.transform, matchBridge, handView);
 
             EnsureKeepButton(false);
-            EnsureStoreActionButton(ref listViewButton, "MarketButton", RiverToggleButtonPosition, RiverToggleButtonScale, null, OnMarketButtonClicked, false);
+            EnsureStoreActionButton(ref listViewButton, "MarketButton", RiverToggleButtonPosition, RiverToggleButtonScale, hideDeckIcon, OnMarketButtonClicked, false);
+            listViewButtonIcon = listViewButton != null ? listViewButton.GetComponent<Image>() : null;
 
             EnsureStoreActionButton(ref buyButton, "BuyButton", BuyButtonPosition, BuyButtonScale, buyIcon, OnBuyClicked, false);
             EnsureStoreActionButton(ref sellButton, "SellButton", SellButtonPosition, SellButtonScale, sellIcon, OnSellClicked, false);
@@ -811,7 +861,7 @@ namespace LegendsOfTheUniverse.Presentation
                 case "TradeButton":
                     return "Trade a card with the store";
                 case "MarketButton":
-                    return "See this round's cards for sale";
+                    return "Show or hide the store";
                 default:
                     return buttonName.Replace("Button", string.Empty);
             }

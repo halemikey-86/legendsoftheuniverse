@@ -884,6 +884,10 @@ namespace LegendsOfTheUniverse.Presentation
             card.transform.SetParent(transform);
             handCards.Add(card);
 
+            var storeClick = card.GetComponent<StoreCardClickHandler>();
+            if (storeClick != null)
+                Destroy(storeClick);
+
             var clickHandler = card.GetComponent<CardClickHandler>();
             if (clickHandler == null)
                 clickHandler = card.gameObject.AddComponent<CardClickHandler>();
