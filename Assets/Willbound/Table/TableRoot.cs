@@ -40,7 +40,6 @@ namespace Willbound.Table
         IconLifeView localIconLife;
         IconLifeView opponentIconLife;
         WorldAnchoredUi clashScoreUi;
-        Transform clashScoreAnchor;
         int localIconInstanceId = -1;
         int opponentIconInstanceId = -1;
         int damageToLocalIconThisClash;
@@ -59,6 +58,13 @@ namespace Willbound.Table
         void OnEnable() => SubscribeBridge();
 
         void OnDisable() => UnsubscribeBridge();
+
+        void OnDestroy()
+        {
+            UnsubscribeBridge();
+            if (clashScoreUi != null)
+                Destroy(clashScoreUi.gameObject);
+        }
 
         void ResolveReferences()
         {
@@ -142,6 +148,9 @@ namespace Willbound.Table
             binder?.RefreshSnapshot();
             SyncEngineFieldViews();
             RefreshIconLifeFromMatch();
+            if (!IsClashPhase)
+                ResetClashDamage();
+            RefreshClashScore();
         }
 
         public void EnableMatchTable()
@@ -419,6 +428,8 @@ namespace Willbound.Table
             var opponentSlot = 0;
             var localWell = 0;
             var opponentWell = 0;
+            var localRelic = 0;
+            var opponentRelic = 0;
             var declare = snap.ClashPhase == ClashPhase.C1_ActiveDeclare;
 
             for (var i = 0; i < allField.Count; i++)
@@ -438,6 +449,8 @@ namespace Willbound.Table
                     pos = isLocal ? PlaymatZones.Icon : PlaymatZones.OpponentIcon;
                 else if (card.Type == CardType.WillSite)
                     pos = isLocal ? PlaymatZones.GetWillwellSlot(localWell++) : PlaymatZones.GetOpponentWillwellSlot(opponentWell++);
+                else if (card.Type is CardType.Relic or CardType.Bond)
+                    pos = isLocal ? PlaymatZones.GetRelicBondSlot(localRelic++) : PlaymatZones.GetOpponentRelicBondSlot(opponentRelic++);
                 else
                     pos = isLocal ? PlaymatZones.GetFieldSlot(localSlot++) : PlaymatZones.GetOpponentFieldSlot(opponentSlot++);
 
@@ -602,36 +615,44 @@ namespace Willbound.Table
                 life.SetClashTaken(damageToEnemyIconThisClash);
             }
 
-            EnsureClashScoreUi();
+            RefreshClashScore();
+        }
+
+        bool IsClashPhase
+        {
+            get
+            {
+                if (matchBridge == null || !matchBridge.IsActive || matchBridge.Runner == null)
+                    return false;
+                return matchBridge.Runner.Match.Phase == Phase.Clash;
+            }
         }
 
         void EnsureClashScoreUi()
         {
-            if (clashScoreAnchor == null)
-            {
-                var go = new GameObject("ClashScoreAnchor");
-                go.transform.SetParent(transform, false);
-                go.transform.position = PlaymatZones.FieldCenter + new Vector3(0f, 0.25f, 0f);
-                clashScoreAnchor = go.transform;
-            }
+            if (clashScoreUi != null)
+                return;
 
-            if (clashScoreUi == null)
-            {
-                clashScoreUi = WorldAnchoredUi.CreateLabeled(
-                    clashScoreAnchor,
-                    "Clash damage to Icons",
-                    "You deal  ·  they deal",
-                    new Vector3(0f, 0.35f, 0f),
-                    new Vector2(320f, 96f),
-                    26);
-            }
-
-            RefreshClashScore();
+            clashScoreUi = WorldAnchoredUi.CreateLabeledScreenAnchored(
+                "Clash damage to Icons",
+                "You deal  ·  they deal",
+                new Vector2(0.5f, 1f),
+                new Vector2(0f, -148f),
+                new Vector2(320f, 96f),
+                26);
         }
 
         void RefreshClashScore()
         {
+            var inClash = IsClashPhase;
+            if (inClash)
+                EnsureClashScoreUi();
+
             if (clashScoreUi == null)
+                return;
+
+            clashScoreUi.gameObject.SetActive(inClash);
+            if (!inClash)
                 return;
 
             clashScoreUi.Value = $"{damageToEnemyIconThisClash}  →  {damageToLocalIconThisClash}";

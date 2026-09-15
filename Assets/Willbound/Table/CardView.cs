@@ -134,8 +134,15 @@ namespace Willbound.Table
             if (GetComponent<IconLifeView>() != null)
                 return;
 
+            // Relics, Bonds, and Will sites print Health 0. Do not invent a 0/1 Body chip.
+            if (max <= 0)
+            {
+                if (healthUi != null)
+                    healthUi.gameObject.SetActive(false);
+                return;
+            }
+
             current = Mathf.Max(0, current);
-            max = Mathf.Max(1, max);
             if (current >= max)
             {
                 if (healthUi != null)

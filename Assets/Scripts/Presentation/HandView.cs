@@ -745,7 +745,17 @@ namespace LegendsOfTheUniverse.Presentation
                 return;
             }
 
-            var fieldCount = player.Field.Count;
+            if (IsRelicOrBond(card))
+            {
+                var relicCount = CountFieldOfTypes(player, CardType.Relic, CardType.Bond);
+                if (relicCount >= PlaymatZones.RelicBondSlotCount)
+                    ShowFieldSlotHighlight(PlaymatZones.GetRelicBondSlot(PlaymatZones.RelicBondSlotCount - 1), false);
+                else
+                    ShowFieldSlotHighlight(PlaymatZones.GetRelicBondSlot(relicCount), canPlay);
+                return;
+            }
+
+            var fieldCount = CountFieldOfTypes(player, CardType.Companion, CardType.Token);
             if (fieldCount >= PlaymatZones.FieldSlotCount)
                 ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(PlaymatZones.FieldSlotCount - 1), false);
             else
@@ -757,6 +767,29 @@ namespace LegendsOfTheUniverse.Presentation
             if (card.BoundPrinting != null)
                 return card.BoundPrinting.Type == CardType.WillSite;
             return false;
+        }
+
+        static bool IsRelicOrBond(CardView card)
+        {
+            if (card.BoundPrinting == null)
+                return false;
+            return card.BoundPrinting.Type is CardType.Relic or CardType.Bond;
+        }
+
+        static int CountFieldOfTypes(Willbound.Engine.Player player, CardType typeA, CardType typeB)
+        {
+            if (player?.Field == null)
+                return 0;
+
+            var count = 0;
+            for (var i = 0; i < player.Field.Count; i++)
+            {
+                var printing = player.Field[i]?.Printing;
+                if (printing != null && (printing.Type == typeA || printing.Type == typeB))
+                    count++;
+            }
+
+            return count;
         }
 
         void ShowFieldSlotHighlight(Vector3 worldPosition, bool legal)

@@ -132,5 +132,11 @@ namespace LegendsOfTheUniverse.Presentation
             labelUi.Subtitle = GetDialSubtitle(dialKind);
             labelUi.Value = currentValue.ToString();
         }
+
+        void OnDestroy()
+        {
+            if (labelUi != null)
+                Destroy(labelUi.gameObject);
+        }
     }
 }

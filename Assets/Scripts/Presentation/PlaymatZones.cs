@@ -43,7 +43,8 @@ namespace LegendsOfTheUniverse.Presentation
 
         // Center play area
         public static readonly Vector3 FieldCenter = new(-0.09f, CardY, 3.6f);
-        public static readonly Vector3 RelicBondCenter = new(-0.06f, CardY, -2.04f);
+        public static readonly Vector3 RelicBondCenter = new(5.2f, CardY, -2.04f);
+        public static readonly Vector3 OpponentRelicBondCenter = new(5.2f, CardY, 6.4f);
         public const int FieldSlotCount = 4;
         public const int RelicBondSlotCount = 4;
         public const float FieldSlotSpacing = 1.65f;
@@ -136,6 +137,12 @@ namespace LegendsOfTheUniverse.Presentation
         {
             var startZ = RelicBondCenter.z - ((RelicBondSlotCount - 1) * FieldSlotSpacing * 0.5f);
             return new Vector3(RelicBondCenter.x, RelicBondCenter.y, startZ + (index * FieldSlotSpacing));
+        }
+
+        public static Vector3 GetOpponentRelicBondSlot(int index)
+        {
+            var startZ = OpponentRelicBondCenter.z - ((RelicBondSlotCount - 1) * FieldSlotSpacing * 0.5f);
+            return new Vector3(OpponentRelicBondCenter.x, OpponentRelicBondCenter.y, startZ + (index * FieldSlotSpacing));
         }
     }
 
