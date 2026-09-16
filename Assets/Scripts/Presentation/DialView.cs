@@ -19,7 +19,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] DialKind dialKind = DialKind.Worth;
         [SerializeField] Vector2 screenAnchor = new(1f, 1f);
         [SerializeField] Vector2 screenOffset = Vector2.zero;
-        [SerializeField] Vector2 panelSize = new(128f, 78f);
+        [SerializeField] Vector2 panelSize = new(156f, 108f);
 
         WorldAnchoredUi labelUi;
         int currentValue = 3;
@@ -49,7 +49,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (labelUi != null)
                 return;
 
-            labelUi = WorldAnchoredUi.CreateLabeledScreenAnchored(
+            labelUi = WorldAnchoredUi.CreateHudCounter(
                 GetDialTitle(dialKind),
                 GetDialSubtitle(dialKind),
                 screenAnchor,
@@ -103,6 +103,8 @@ namespace LegendsOfTheUniverse.Presentation
         public void SetValue(int value)
         {
             currentValue = value;
+            if (labelUi == null)
+                EnsureUi();
             RefreshDisplay();
         }
 
@@ -127,8 +129,11 @@ namespace LegendsOfTheUniverse.Presentation
         void RefreshDisplay()
         {
             if (labelUi == null)
+                EnsureUi();
+            if (labelUi == null)
                 return;
 
+            labelUi.gameObject.SetActive(true);
             labelUi.Subtitle = GetDialSubtitle(dialKind);
             labelUi.Value = currentValue.ToString();
         }

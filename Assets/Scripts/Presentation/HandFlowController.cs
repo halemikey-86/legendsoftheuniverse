@@ -874,7 +874,7 @@ namespace LegendsOfTheUniverse.Presentation
                 case "BuyButton":
                     return "Buy a card from the store";
                 case "SellButton":
-                    return "Sell a card from your hand for 1 Worth";
+                    return "Sell a card from your hand for its printed Worth";
                 case "TradeButton":
                     return "Trade a card with the store";
                 case "MarketButton":

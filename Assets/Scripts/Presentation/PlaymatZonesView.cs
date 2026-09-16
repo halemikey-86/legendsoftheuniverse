@@ -25,10 +25,10 @@ namespace LegendsOfTheUniverse.Presentation
         static readonly Vector2 TopLeftAnchor = new(0f, 1f);
         static readonly Vector2 TopCenterAnchor = new(0.5f, 1f);
         static readonly Vector2 TopRightAnchor = new(1f, 1f);
-        static readonly Vector2 HonorOffset = new(90f, -50f);
-        static readonly Vector2 RoundOffset = new(0f, -50f);
-        static readonly Vector2 WorthOffset = new(-228f, -50f);
-        static readonly Vector2 WillOffset = new(-90f, -50f);
+        static readonly Vector2 HonorOffset = new(100f, -66f);
+        static readonly Vector2 RoundOffset = new(0f, -66f);
+        static readonly Vector2 WorthOffset = new(-268f, -66f);
+        static readonly Vector2 WillOffset = new(-96f, -66f);
 
         public static PlaymatZonesView Instance { get; private set; }
 
@@ -163,6 +163,12 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void SetWorth(int worth)
         {
+            if (Worth == null)
+            {
+                zonesBuilt = false;
+                BuildZones();
+            }
+
             Worth?.SetValue(worth);
         }
 

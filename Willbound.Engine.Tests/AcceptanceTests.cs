@@ -440,7 +440,7 @@ namespace Willbound.Engine.Tests
         }
 
         [Test]
-        public void Test35_StoreSellGivesOneWorthAndRemovesFromHand()
+        public void Test35_StoreSellGivesPrintedWorthAndRemovesFromHand()
         {
             var runner = TestHelpers.TwoPlayerMatch();
             runner.AdvanceToMain();
@@ -448,6 +448,7 @@ namespace Willbound.Engine.Tests
             Assert.That(player.Hand.Count, Is.GreaterThan(0));
             var card = player.Hand[0];
             var instanceId = card.InstanceId;
+            var sellWorth = card.Printing.StoreWorth;
             var beforeWorth = player.Worth;
             var beforeHand = player.Hand.Count;
 
@@ -460,14 +461,45 @@ namespace Willbound.Engine.Tests
             });
             Assert.That(announced.Success, Is.True, announced.Error);
             Assert.That(player.Hand.Count, Is.EqualTo(beforeHand));
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth), "Worth is paid on resolve, not announce.");
 
             runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
             runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
 
             Assert.That(player.Hand.Count, Is.EqualTo(beforeHand - 1));
             Assert.That(player.Hand.Exists(c => c.InstanceId == instanceId), Is.False);
-            Assert.That(player.Worth, Is.EqualTo(beforeWorth + 1));
-            Assert.That(card.Zone == Zone.Store || card.Zone == Zone.Supply, Is.True);
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth + sellWorth));
+            Assert.That(card.Zone, Is.EqualTo(Zone.Store));
+        }
+
+        [Test]
+        public void StoreSellGivesTheCardPrintedStoreWorth()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            var striker = TestHelpers.PutCompanionInField(runner, 0, BootstrapCards.VanillaStriker());
+            player.Field.Remove(striker);
+            striker.Zone = Zone.Hand;
+            player.Hand.Add(striker);
+
+            var beforeWorth = player.Worth;
+            var announced = runner.Apply(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreSell,
+                PlayerId = 0,
+                HandCardInstanceId = striker.InstanceId,
+                StoreKind = StoreActionKind.Sell,
+            });
+            Assert.That(announced.Success, Is.True, announced.Error);
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(striker.Printing.StoreWorth, Is.EqualTo(2));
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth + 2));
+            Assert.That(player.Hand.Exists(c => c.InstanceId == striker.InstanceId), Is.False);
+            Assert.That(striker.Zone, Is.EqualTo(Zone.Store));
         }
 
         [Test]
@@ -506,6 +538,15 @@ namespace Willbound.Engine.Tests
             Assert.That(card.Id, Is.EqualTo("SITH-001"));
             Assert.That(card.Abilities.Count, Is.EqualTo(1));
             Assert.That(card.Abilities[0].Effects.Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void Loader_ReadsWorthAliasAsStoreWorth()
+        {
+            const string json = @"{""id"":""rm-06"",""name"":""Purse Cutter"",""type"":""Companion"",""will"":2,""worth"":2,""strike"":2,""guard"":1,""health"":2}";
+            var card = CardPrintingLoader.Parse(json);
+            Assert.That(card.WillCost, Is.EqualTo(2));
+            Assert.That(card.StoreWorth, Is.EqualTo(2));
         }
     }
 }

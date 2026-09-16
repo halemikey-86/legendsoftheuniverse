@@ -47,8 +47,8 @@ namespace Willbound.Engine
                 Type = ParseType(GetString(el, "type")),
                 Subtype = GetString(el, "subtype"),
                 Role = GetString(el, "role"),
-                WillCost = GetInt(el, "willCost"),
-                StoreWorth = GetInt(el, "storeWorth"),
+                WillCost = GetInt(el, "willCost", "will"),
+                StoreWorth = GetInt(el, "storeWorth", "worth"),
                 Strike = GetInt(el, "strike"),
                 Guard = GetInt(el, "guard"),
                 Health = GetInt(el, "health"),
@@ -190,8 +190,16 @@ namespace Willbound.Engine
         static string GetString(JsonElement el, string name) =>
             el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String ? prop.GetString() : null;
 
-        static int GetInt(JsonElement el, string name) =>
-            el.TryGetProperty(name, out var prop) && prop.TryGetInt32(out var value) ? value : 0;
+        static int GetInt(JsonElement el, params string[] names)
+        {
+            for (var i = 0; i < names.Length; i++)
+            {
+                if (el.TryGetProperty(names[i], out var prop) && prop.TryGetInt32(out var value))
+                    return value;
+            }
+
+            return 0;
+        }
 
         static bool GetBool(JsonElement el, string name) =>
             el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.True;

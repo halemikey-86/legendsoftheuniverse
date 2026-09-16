@@ -49,8 +49,10 @@ namespace LegendsOfTheUniverse.Presentation
             get => valueText != null ? valueText.text : string.Empty;
             set
             {
-                if (valueText != null)
-                    valueText.text = value;
+                if (valueText == null)
+                    return;
+                valueText.text = value ?? string.Empty;
+                valueText.SetAllDirty();
             }
         }
 
@@ -110,8 +112,26 @@ namespace LegendsOfTheUniverse.Presentation
             ui.screenAnchor01 = screenAnchor;
             ui.screenOffsetPixels = screenOffset;
             ui.BuildSubtitle(subtitle);
-            if (ui.valueText != null)
-                ui.valueText.fontSize = valueFontSize;
+            ui.ApplyHudValueLayout(valueFontSize);
+            ui.ApplyScreenAnchorPosition();
+            return ui;
+        }
+
+        /// <summary>Title on top, large number in the middle, caption underneath. Sized so the value
+        /// cannot be clipped by a 24pt font in a 26px strip.</summary>
+        public static WorldAnchoredUi CreateHudCounter(
+            string title,
+            string subtitle,
+            Vector2 screenAnchor,
+            Vector2 screenOffset,
+            Vector2 size)
+        {
+            var ui = CreateInternal(null, title, null, Vector3.zero, size, 15, withValue: true, showTitle: true);
+            ui.useScreenAnchor = true;
+            ui.screenAnchor01 = screenAnchor;
+            ui.screenOffsetPixels = screenOffset;
+            ui.BuildSubtitle(subtitle);
+            ui.ApplyHudValueLayout(36);
             ui.ApplyScreenAnchorPosition();
             return ui;
         }
@@ -145,7 +165,9 @@ namespace LegendsOfTheUniverse.Presentation
 
         void BuildUi(string label, Sprite labelSprite)
         {
-            panelRect = gameObject.AddComponent<RectTransform>();
+            panelRect = gameObject.GetComponent<RectTransform>();
+            if (panelRect == null)
+                panelRect = gameObject.AddComponent<RectTransform>();
             panelRect.sizeDelta = panelSize;
             panelRect.pivot = new Vector2(0.5f, 0.5f);
 
@@ -175,6 +197,8 @@ namespace LegendsOfTheUniverse.Presentation
             valueText.alignment = TextAnchor.MiddleCenter;
             valueText.color = new Color(0.98f, 0.96f, 0.90f, 1f);
             valueText.raycastTarget = false;
+            valueText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            valueText.verticalOverflow = VerticalWrapMode.Overflow;
             valueText.text = "0";
 
             var valueRect = valueText.rectTransform;
@@ -182,6 +206,55 @@ namespace LegendsOfTheUniverse.Presentation
             valueRect.anchorMax = new Vector2(1f, subtitleText != null ? 0.34f : 0.42f);
             valueRect.offsetMin = Vector2.zero;
             valueRect.offsetMax = Vector2.zero;
+        }
+
+        void ApplyHudValueLayout(int valueFontSize)
+        {
+            if (labelText != null)
+            {
+                var labelRect = labelText.rectTransform;
+                labelRect.anchorMin = new Vector2(0.04f, 0.72f);
+                labelRect.anchorMax = new Vector2(0.96f, 0.98f);
+                labelRect.offsetMin = Vector2.zero;
+                labelRect.offsetMax = Vector2.zero;
+                labelText.fontSize = 16;
+                labelText.alignment = TextAnchor.MiddleCenter;
+            }
+
+            if (valueText != null)
+            {
+                var valueRect = valueText.rectTransform;
+                valueRect.anchorMin = new Vector2(0.04f, 0.24f);
+                valueRect.anchorMax = new Vector2(0.96f, 0.74f);
+                valueRect.offsetMin = Vector2.zero;
+                valueRect.offsetMax = Vector2.zero;
+                valueText.fontSize = valueFontSize;
+                valueText.alignment = TextAnchor.MiddleCenter;
+                valueText.horizontalOverflow = HorizontalWrapMode.Overflow;
+                valueText.verticalOverflow = VerticalWrapMode.Overflow;
+                valueText.resizeTextForBestFit = true;
+                valueText.resizeTextMinSize = 18;
+                valueText.resizeTextMaxSize = Mathf.Max(valueFontSize, 22);
+
+                var outline = valueText.GetComponent<Outline>();
+                if (outline == null)
+                    outline = valueText.gameObject.AddComponent<Outline>();
+                outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
+                outline.effectDistance = new Vector2(1.2f, -1.2f);
+            }
+
+            if (subtitleText != null)
+            {
+                var subtitleRect = subtitleText.rectTransform;
+                subtitleRect.anchorMin = new Vector2(0.04f, 0.02f);
+                subtitleRect.anchorMax = new Vector2(0.96f, 0.24f);
+                subtitleRect.offsetMin = Vector2.zero;
+                subtitleRect.offsetMax = Vector2.zero;
+                subtitleText.fontSize = 11;
+                subtitleText.alignment = TextAnchor.MiddleCenter;
+                subtitleText.horizontalOverflow = HorizontalWrapMode.Wrap;
+                subtitleText.verticalOverflow = VerticalWrapMode.Overflow;
+            }
         }
 
         void BuildSubtitle(string subtitle)
@@ -321,6 +394,8 @@ namespace LegendsOfTheUniverse.Presentation
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
         }
     }
 }

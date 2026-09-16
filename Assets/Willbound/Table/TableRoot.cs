@@ -373,6 +373,8 @@ namespace Willbound.Table
                     if (view == null)
                         view = shell.gameObject.AddComponent<Willbound.Table.CardView>();
 
+                    ApplyFieldCardArt(shell, card);
+                    shell.SetFaceUpImmediate(true);
                     engineHandCards[card.InstanceId] = view;
                     binder.RegisterCardView(card.InstanceId, view);
                 }

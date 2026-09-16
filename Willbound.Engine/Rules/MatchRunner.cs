@@ -613,11 +613,10 @@ namespace Willbound.Engine
             if (controller == null)
                 return;
             controller.Will += obj.PaidWill;
-            controller.Worth += obj.PaidWorth;
             if (obj.PaidWill > 0)
                 Emit(EventKind.WillSet, "player", controller.Id, "amount", controller.Will);
             if (obj.PaidWorth > 0)
-                Emit(EventKind.WorthChanged, "player", controller.Id, "delta", obj.PaidWorth);
+                GainWorth(controller, obj.PaidWorth);
         }
 
         StackObject FindStack(int stackId)
@@ -736,8 +735,52 @@ namespace Willbound.Engine
             if (amount <= 0)
                 return 0;
             player.Worth -= amount;
-            Emit(EventKind.WorthChanged, "player", player.Id, "delta", -amount);
+            EmitWorthChanged(player, -amount);
             return amount;
+        }
+
+        int GainWorth(Player player, int amount)
+        {
+            if (player == null || amount <= 0)
+                return 0;
+            player.Worth += amount;
+            EmitWorthChanged(player, amount);
+            return amount;
+        }
+
+        void EmitWorthChanged(Player player, int delta)
+        {
+            Emit(EventKind.WorthChanged, "player", player.Id, "delta", delta, "amount", player.Worth);
+        }
+
+        /// <summary>Sell always puts the card into the Store. If every slot is full, the last
+        /// Store card is pushed to the bottom of Supply so the sold card stays on the river.</summary>
+        void PlaceSoldCardInStore(CardInstance card)
+        {
+            for (var i = 0; i < Match.Store.Length; i++)
+            {
+                if (Match.Store[i] != null)
+                    continue;
+
+                Match.Store[i] = card;
+                card.Zone = Zone.Store;
+                card.ControllerId = -1;
+                return;
+            }
+
+            var last = Match.Store.Length - 1;
+            var displaced = Match.Store[last];
+            if (displaced != null)
+            {
+                displaced.Zone = Zone.Supply;
+                displaced.ControllerId = -1;
+                Match.Supply.Add(displaced);
+                Emit(EventKind.CardMoved, "instanceId", displaced.InstanceId, "zone", Zone.Supply.ToString());
+            }
+
+            Match.Store[last] = card;
+            card.Zone = Zone.Store;
+            card.ControllerId = -1;
         }
 
         void ResolveStore(StackObject obj)
@@ -785,28 +828,11 @@ namespace Willbound.Engine
                         if (card != null)
                         {
                             player.Hand.Remove(card);
-                            player.Worth += 1;
-
-                            var placed = false;
-                            for (var i = 0; i < Match.Store.Length; i++)
-                            {
-                                if (Match.Store[i] == null)
-                                {
-                                    Match.Store[i] = card;
-                                    card.Zone = Zone.Store;
-                                    card.ControllerId = -1;
-                                    placed = true;
-                                    break;
-                                }
-                            }
-
-                            if (!placed)
-                            {
-                                card.Zone = Zone.Supply;
-                                Match.Supply.Add(card);
-                            }
-
-                            Emit(EventKind.WorthChanged, "player", player.Id, "delta", 1);
+                            var gained = card.Printing != null ? card.Printing.StoreWorth : 0;
+                            if (gained < 0)
+                                gained = 0;
+                            GainWorth(player, gained);
+                            PlaceSoldCardInStore(card);
                             Emit(EventKind.CardMoved, "instanceId", card.InstanceId, "zone", card.Zone.ToString());
                         }
                     }

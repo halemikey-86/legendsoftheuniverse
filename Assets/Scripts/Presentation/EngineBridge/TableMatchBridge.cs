@@ -184,6 +184,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
 
             PublishResult(result);
+            if (IsStoreAction(action.Kind))
+                ResolveWaitingOwnStack();
             KickNonLocalActors();
             return result;
         }
@@ -516,7 +518,11 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
         {
             for (var i = 0; i < MaxAutoPasses; i++)
             {
-                if (!IsActive || !OwnPlayWaitingToResolve(runner.Match))
+                if (!IsActive)
+                    return;
+                if (runner.Match.Stack == null || runner.Match.Stack.Count == 0)
+                    return;
+                if (!OwnPlayWaitingToResolve(runner.Match))
                     return;
 
                 var match = runner.Match;
@@ -527,10 +533,11 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                     if (response.Kind != PlayerActionKind.Pass)
                     {
                         var applied = runner.Apply(response);
-                        if (!applied.Success)
-                            return;
-                        PublishResult(applied);
-                        continue;
+                        if (applied.Success)
+                        {
+                            PublishResult(applied);
+                            continue;
+                        }
                     }
                 }
 
@@ -727,8 +734,30 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             if (match.Stack == null || match.Stack.Count == 0)
                 return false;
 
-            var top = match.Stack[match.Stack.Count - 1];
-            return top.ControllerId == localPlayerId && top.Type != StackObjectType.Press;
+            for (var i = 0; i < match.Stack.Count; i++)
+            {
+                var obj = match.Stack[i];
+                if (obj.ControllerId == localPlayerId && obj.Type != StackObjectType.Press)
+                    return true;
+            }
+
+            return false;
+        }
+
+        static bool IsStoreAction(PlayerActionKind kind)
+        {
+            switch (kind)
+            {
+                case PlayerActionKind.StoreBuy:
+                case PlayerActionKind.StoreSell:
+                case PlayerActionKind.StoreTrade:
+                case PlayerActionKind.StoreKeep:
+                case PlayerActionKind.StoreList:
+                case PlayerActionKind.StoreRow:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         bool LocalHasResponse(Match match)
@@ -807,9 +836,14 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 case EventKind.WorthChanged:
                     if (TryInt(e, "player", out var worthPlayer) && worthPlayer == localPlayerId)
                     {
-                        var player = runner.Match.GetPlayer(localPlayerId);
-                        if (player != null)
-                            playmatZones?.SetWorth(player.Worth);
+                        if (TryInt(e, "amount", out var worthAmount))
+                            playmatZones?.SetWorth(worthAmount);
+                        else
+                        {
+                            var player = runner.Match.GetPlayer(localPlayerId);
+                            if (player != null)
+                                playmatZones?.SetWorth(player.Worth);
+                        }
                     }
                     break;
                 case EventKind.PhaseChanged:
@@ -844,10 +878,17 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
         }
 
+        public void RefreshHud() => SyncHudFromEngine();
+
         void SyncHudFromEngine()
         {
             if (!IsActive)
                 return;
+
+            if (playmatZones == null)
+                playmatZones = PlaymatZonesView.Instance != null
+                    ? PlaymatZonesView.Instance
+                    : GetComponent<PlaymatZonesView>();
 
             var match = runner.Match;
             var player = match.GetPlayer(localPlayerId);

@@ -158,39 +158,44 @@ namespace LegendsOfTheUniverse.Presentation
                 }
 
                 var instanceId = handCard.EngineCardInstanceId.Value;
-                var originalIndex = handView.GetOpeningHandIndex(handCard);
-                if (!handView.DetachHandCard(handCard))
-                {
-                    matchBridge.NotifyError("That card is not in your hand.");
-                    yield break;
-                }
-
-                handView.RelayoutHand();
 
                 if (!matchBridge.TryStoreSell(instanceId, out _))
-                {
-                    handView.RestoreLeavingCard(handCard, instanceId, originalIndex);
-                    handView.RelayoutHand();
                     yield break;
-                }
 
-                if (!handView.TryTakeLeavingCard(instanceId, out var sold) || sold == null)
-                    sold = handCard;
+                var player = matchBridge.Runner.Match.GetPlayer(matchBridge.LocalPlayerId);
+                if (player != null)
+                {
+                    matchBridge.RefreshHud();
+                    PlaymatZonesView.Instance?.SetWorth(player.Worth);
+                }
 
                 var engineCard = matchBridge.Runner.Match.GetCard(instanceId);
                 if (engineCard == null || engineCard.Zone == Zone.Hand)
                 {
-                    handView.RestoreLeavingCard(sold, instanceId, originalIndex);
-                    handView.RelayoutHand();
                     matchBridge.NotifyError("Sell is waiting on the stack. Pass to resolve it.");
                     yield break;
                 }
 
+                if (handView.ContainsHandCard(handCard))
+                    handView.DetachHandCard(handCard);
+
+                handView.RelayoutHand();
+
+                if (!handView.TryTakeLeavingCard(instanceId, out var sold) || sold == null)
+                    sold = handCard;
+
                 var slotIndex = FindStoreSlotFor(instanceId);
-                if (slotIndex >= 0 && engineCard.Zone == Zone.Store)
+                if (slotIndex < 0)
+                    slotIndex = PlaymatZones.StoreSlotCount - 1;
+
+                if (sold != null && storeView != null)
                     yield return storeView.AdmitHandCardRoutine(sold, slotIndex, actionAnimDuration);
-                else
-                    yield return handView.DestroyCardRoutine(sold, actionAnimDuration);
+
+                if (player != null)
+                {
+                    matchBridge.RefreshHud();
+                    PlaymatZonesView.Instance?.SetWorth(player.Worth);
+                }
 
                 SetCurrentMode(StoreActionMode.None);
                 handView.RefreshPlayableOutlines();

@@ -310,7 +310,9 @@ namespace LegendsOfTheUniverse.Presentation
             if (frontMaterialInstance == null)
                 frontMaterialInstance = new Material(cardFaceMaterial);
 
-            TablePresentation.ConfigureCardMaterial(frontMaterialInstance, frontTexture);
+            TablePresentation.ConfigureCardMaterial(
+                frontMaterialInstance,
+                frontTexture != null ? frontTexture : cardBackTexture);
             frontRenderer.sharedMaterial = frontMaterialInstance;
             TablePresentation.EnsureRendererVisible(frontRenderer);
         }
