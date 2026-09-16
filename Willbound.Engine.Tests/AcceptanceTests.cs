@@ -440,6 +440,37 @@ namespace Willbound.Engine.Tests
         }
 
         [Test]
+        public void Test35_StoreSellGivesOneWorthAndRemovesFromHand()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            Assert.That(player.Hand.Count, Is.GreaterThan(0));
+            var card = player.Hand[0];
+            var instanceId = card.InstanceId;
+            var beforeWorth = player.Worth;
+            var beforeHand = player.Hand.Count;
+
+            var announced = runner.Apply(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreSell,
+                PlayerId = 0,
+                HandCardInstanceId = instanceId,
+                StoreKind = StoreActionKind.Sell,
+            });
+            Assert.That(announced.Success, Is.True, announced.Error);
+            Assert.That(player.Hand.Count, Is.EqualTo(beforeHand));
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(player.Hand.Count, Is.EqualTo(beforeHand - 1));
+            Assert.That(player.Hand.Exists(c => c.InstanceId == instanceId), Is.False);
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth + 1));
+            Assert.That(card.Zone == Zone.Store || card.Zone == Zone.Supply, Is.True);
+        }
+
+        [Test]
         public void Test34_StoreBuyRejectsInsufficientWorth()
         {
             var runner = TestHelpers.TwoPlayerMatch();

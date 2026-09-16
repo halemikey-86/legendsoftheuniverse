@@ -25,6 +25,12 @@ namespace LegendsOfTheUniverse.Presentation
                 CardHoverAudio.PlayHoverFlip();
         }
 
+        void OnMouseOver()
+        {
+            if (cardView != null)
+                CardMagnifyView.NotifyPointerOver(cardView);
+        }
+
         void OnMouseDown()
         {
             if (pickView != null && cardView != null)

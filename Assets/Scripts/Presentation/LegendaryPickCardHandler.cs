@@ -33,6 +33,12 @@ namespace LegendsOfTheUniverse.Presentation
             HoverTooltipView.Hide();
         }
 
+        void OnMouseOver()
+        {
+            if (cardView != null)
+                CardMagnifyView.NotifyPointerOver(cardView);
+        }
+
         void OnMouseDown()
         {
             if (pickView != null && cardView != null)

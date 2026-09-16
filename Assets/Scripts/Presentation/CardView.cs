@@ -43,6 +43,7 @@ namespace LegendsOfTheUniverse.Presentation
         Material backMaterialInstance;
         Material playableOutlineMaterial;
         BoxCollider clickCollider;
+        BoxCollider magnifyCollider;
         Transform playableOutline;
         bool playableOutlineEnabled;
 
@@ -61,6 +62,7 @@ namespace LegendsOfTheUniverse.Presentation
         {
             EnsureCardAssets();
             EnsureShell();
+            EnsureMagnifyHit();
             ApplyTableOrientation();
             ApplySessionBack();
             ApplyMaterials();
@@ -165,6 +167,7 @@ namespace LegendsOfTheUniverse.Presentation
                 ApplyCardScale(backRenderer.transform);
             ApplyPlayableOutlineScale();
             UpdateClickCollider();
+            UpdateMagnifyCollider();
         }
 
         public Vector3 GetWorldSize()
@@ -213,6 +216,44 @@ namespace LegendsOfTheUniverse.Presentation
             var size = GetWorldSize();
             clickCollider.size = size;
             clickCollider.center = new Vector3(0f, 0.15f, 0f);
+        }
+
+        void EnsureMagnifyHit()
+        {
+            if (magnifyCollider != null)
+                return;
+
+            var existing = transform.Find("MagnifyHit");
+            var hitTransform = existing != null ? existing : new GameObject("MagnifyHit").transform;
+            if (existing == null)
+                hitTransform.SetParent(transform, false);
+
+            magnifyCollider = hitTransform.GetComponent<BoxCollider>();
+            if (magnifyCollider == null)
+                magnifyCollider = hitTransform.gameObject.AddComponent<BoxCollider>();
+
+            magnifyCollider.isTrigger = true;
+            UpdateMagnifyCollider();
+
+            var relay = hitTransform.GetComponent<CardMagnifyHitRelay>();
+            if (relay == null)
+                relay = hitTransform.gameObject.AddComponent<CardMagnifyHitRelay>();
+            relay.Card = this;
+        }
+
+        void OnMouseOver()
+        {
+            CardMagnifyView.NotifyPointerOver(this);
+        }
+
+        void UpdateMagnifyCollider()
+        {
+            if (magnifyCollider == null)
+                return;
+
+            var size = GetWorldSize();
+            magnifyCollider.size = size;
+            magnifyCollider.center = new Vector3(0f, 0.15f, 0f);
         }
 
         public void SetFrontTexture(Texture2D texture)
@@ -388,5 +429,16 @@ namespace LegendsOfTheUniverse.Presentation
             SetFaceUpImmediate(faceUp);
         }
 #endif
+    }
+
+    sealed class CardMagnifyHitRelay : MonoBehaviour
+    {
+        public CardView Card;
+
+        void OnMouseOver()
+        {
+            if (Card != null)
+                CardMagnifyView.NotifyPointerOver(Card);
+        }
     }
 }

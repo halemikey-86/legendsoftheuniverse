@@ -463,24 +463,34 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }, out error);
         }
 
+        public void NotifyError(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return;
+            EngineError?.Invoke(message);
+        }
+
         bool TryStoreAction(PlayerAction action, out string error)
         {
             error = null;
             if (!IsActive)
             {
                 error = "Engine not active.";
+                NotifyError(error);
                 return false;
             }
 
             if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
             {
                 error = "Store actions are only available during your Main phase (once per turn).";
+                NotifyError(error);
                 return false;
             }
 
             if (botActing)
             {
                 error = "Opponent is acting.";
+                NotifyError(error);
                 return false;
             }
 
@@ -488,7 +498,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             if (!result.Success)
             {
                 error = result.Error;
-                EngineError?.Invoke(error);
+                NotifyError(error);
                 return false;
             }
 
@@ -515,7 +525,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 {
                     var response = bot.Choose(runner, pid);
                     if (response.Kind != PlayerActionKind.Pass)
-                        return;
+                    {
+                        var applied = runner.Apply(response);
+                        if (!applied.Success)
+                            return;
+                        PublishResult(applied);
+                        continue;
+                    }
                 }
 
                 var pass = runner.Apply(new PlayerAction

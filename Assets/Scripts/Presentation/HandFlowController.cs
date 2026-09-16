@@ -134,6 +134,8 @@ namespace LegendsOfTheUniverse.Presentation
             if (GetComponent<BattleMusicController>() == null)
                 gameObject.AddComponent<BattleMusicController>();
 
+            CardMagnifyView.Ensure();
+
             if (storeActions == null)
                 storeActions = gameObject.AddComponent<StoreActionController>();
 
@@ -144,6 +146,7 @@ namespace LegendsOfTheUniverse.Presentation
             matchBridge.EngineEventsApplied += OnEngineEventsApplied;
 
             storeActions.Init(handView, storeView, matchBridge);
+            storeActions.ModeChanged += UpdateActionButtonHighlights;
             handView?.BindStoreActions(storeActions);
             handView?.BindStoreView(storeView);
             handView?.BindMatchBridge(matchBridge);
@@ -196,6 +199,9 @@ namespace LegendsOfTheUniverse.Presentation
         {
             if (turnFlow != null)
                 turnFlow.PhaseStateChanged -= OnTurnPhaseChanged;
+
+            if (storeActions != null)
+                storeActions.ModeChanged -= UpdateActionButtonHighlights;
 
             if (matchBridge != null)
             {
@@ -583,7 +589,18 @@ namespace LegendsOfTheUniverse.Presentation
 
         void OnBuyClicked() => SetStoreActionMode(StoreActionMode.Buy);
 
-        void OnSellClicked() => SetStoreActionMode(StoreActionMode.Sell);
+        void OnSellClicked()
+        {
+            var inspected = handView != null ? handView.InspectedCard : null;
+            if (inspected != null && storeActions != null)
+            {
+                storeActions.BeginSell(inspected);
+                UpdateActionButtonHighlights();
+                return;
+            }
+
+            SetStoreActionMode(StoreActionMode.Sell);
+        }
 
         void OnTradeClicked() => SetStoreActionMode(StoreActionMode.Trade);
 
@@ -857,7 +874,7 @@ namespace LegendsOfTheUniverse.Presentation
                 case "BuyButton":
                     return "Buy a card from the store";
                 case "SellButton":
-                    return "Sell a card from your hand";
+                    return "Sell a card from your hand for 1 Worth";
                 case "TradeButton":
                     return "Trade a card with the store";
                 case "MarketButton":

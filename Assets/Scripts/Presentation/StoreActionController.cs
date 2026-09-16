@@ -1,6 +1,8 @@
+using System;
 using System.Collections;
 using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
+using Zone = Willbound.Engine.Zone;
 
 namespace LegendsOfTheUniverse.Presentation
 {
@@ -17,8 +19,10 @@ namespace LegendsOfTheUniverse.Presentation
 
         StoreActionMode currentMode = StoreActionMode.None;
         CardView tradeHandCard;
+        bool storeActionBusy;
 
         public StoreActionMode CurrentMode => currentMode;
+        public event Action ModeChanged;
 
         public void Init(HandView hand, StoreView store, TableMatchBridge bridge = null)
         {
@@ -32,11 +36,20 @@ namespace LegendsOfTheUniverse.Presentation
             if (currentMode == mode)
                 mode = StoreActionMode.None;
 
-            currentMode = mode;
+            SetCurrentMode(mode);
             tradeHandCard = null;
             handView?.ClearInspectSelection();
             storeView?.ClearInspectSelection();
             handView?.RefreshPlayableOutlines();
+        }
+
+        void SetCurrentMode(StoreActionMode mode)
+        {
+            if (currentMode == mode)
+                return;
+
+            currentMode = mode;
+            ModeChanged?.Invoke();
         }
 
         public void ClearStoreInspectSelection()
@@ -73,7 +86,7 @@ namespace LegendsOfTheUniverse.Presentation
             switch (currentMode)
             {
                 case StoreActionMode.Sell:
-                    StartCoroutine(SellRoutine(card));
+                    BeginSell(card);
                     break;
                 case StoreActionMode.Trade:
                     tradeHandCard = tradeHandCard == card ? null : card;
@@ -82,6 +95,15 @@ namespace LegendsOfTheUniverse.Presentation
                     handView.HandleInspectCard(card);
                     break;
             }
+        }
+
+        public void BeginSell(CardView card)
+        {
+            if (storeActionBusy || card == null || handView == null || !handView.HandKept)
+                return;
+
+            SetCurrentMode(StoreActionMode.Sell);
+            StartCoroutine(SellRoutine(card));
         }
 
         IEnumerator BuyRoutine(CardView storeCard)
@@ -105,7 +127,7 @@ namespace LegendsOfTheUniverse.Presentation
                 if (!matchBridge.TryStoreBuy(slotIndex, out _))
                 {
                     yield return storeView.AdmitHandCardRoutine(storeCard, slotIndex, actionAnimDuration);
-                    currentMode = StoreActionMode.None;
+                    SetCurrentMode(StoreActionMode.None);
                     yield break;
                 }
             }
@@ -114,37 +136,69 @@ namespace LegendsOfTheUniverse.Presentation
                 storeCard.SetEngineCardInstanceId(boughtInstanceId);
             yield return handView.AdoptCardRoutine(storeCard, actionAnimDuration);
 
-            currentMode = StoreActionMode.None;
+            SetCurrentMode(StoreActionMode.None);
             handView?.RefreshPlayableOutlines();
         }
 
         IEnumerator SellRoutine(CardView handCard)
         {
-            if (matchBridge == null || !matchBridge.IsActive || handCard.EngineCardInstanceId == null)
-                yield break;
-
-            var instanceId = handCard.EngineCardInstanceId.Value;
-            if (!handView.DetachHandCard(handCard))
-                yield break;
-
-            if (!matchBridge.TryStoreSell(instanceId, out _))
+            storeActionBusy = true;
+            try
             {
-                handView.ReattachHandCard(handCard);
+                if (matchBridge == null || !matchBridge.IsActive)
+                {
+                    matchBridge?.NotifyError("Cannot sell right now.");
+                    yield break;
+                }
+
+                if (handCard == null || handCard.EngineCardInstanceId == null)
+                {
+                    matchBridge.NotifyError("That card can't be sold.");
+                    yield break;
+                }
+
+                var instanceId = handCard.EngineCardInstanceId.Value;
+                var originalIndex = handView.GetOpeningHandIndex(handCard);
+                if (!handView.DetachHandCard(handCard))
+                {
+                    matchBridge.NotifyError("That card is not in your hand.");
+                    yield break;
+                }
+
                 handView.RelayoutHand();
-                currentMode = StoreActionMode.None;
-                yield break;
+
+                if (!matchBridge.TryStoreSell(instanceId, out _))
+                {
+                    handView.RestoreLeavingCard(handCard, instanceId, originalIndex);
+                    handView.RelayoutHand();
+                    yield break;
+                }
+
+                if (!handView.TryTakeLeavingCard(instanceId, out var sold) || sold == null)
+                    sold = handCard;
+
+                var engineCard = matchBridge.Runner.Match.GetCard(instanceId);
+                if (engineCard == null || engineCard.Zone == Zone.Hand)
+                {
+                    handView.RestoreLeavingCard(sold, instanceId, originalIndex);
+                    handView.RelayoutHand();
+                    matchBridge.NotifyError("Sell is waiting on the stack. Pass to resolve it.");
+                    yield break;
+                }
+
+                var slotIndex = FindStoreSlotFor(instanceId);
+                if (slotIndex >= 0 && engineCard.Zone == Zone.Store)
+                    yield return storeView.AdmitHandCardRoutine(sold, slotIndex, actionAnimDuration);
+                else
+                    yield return handView.DestroyCardRoutine(sold, actionAnimDuration);
+
+                SetCurrentMode(StoreActionMode.None);
+                handView.RefreshPlayableOutlines();
             }
-
-            handView.RelayoutHand();
-
-            var slotIndex = FindStoreSlotFor(instanceId);
-            if (slotIndex >= 0)
-                yield return storeView.AdmitHandCardRoutine(handCard, slotIndex, actionAnimDuration);
-            else
-                yield return handView.DestroyCardRoutine(handCard, actionAnimDuration);
-
-            currentMode = StoreActionMode.None;
-            handView?.RefreshPlayableOutlines();
+            finally
+            {
+                storeActionBusy = false;
+            }
         }
 
         int FindStoreSlotFor(int instanceId)
@@ -168,7 +222,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (matchBridge != null && matchBridge.IsActive
                 && !matchBridge.TryStoreTrade(slotIndex, handCard.EngineCardInstanceId.Value, out _))
             {
-                currentMode = StoreActionMode.None;
+                SetCurrentMode(StoreActionMode.None);
                 tradeHandCard = null;
                 yield break;
             }
@@ -181,7 +235,7 @@ namespace LegendsOfTheUniverse.Presentation
             yield return handView.AdoptCardRoutine(storeCard, actionAnimDuration);
 
             tradeHandCard = null;
-            currentMode = StoreActionMode.None;
+            SetCurrentMode(StoreActionMode.None);
             handView?.RefreshPlayableOutlines();
         }
     }

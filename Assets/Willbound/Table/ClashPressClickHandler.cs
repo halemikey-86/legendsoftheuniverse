@@ -21,6 +21,15 @@ namespace Willbound.Table
                 tableCard = GetComponent<CardView>();
         }
 
+        void OnMouseOver()
+        {
+            var presentation = tableCard != null
+                ? tableCard.Presentation
+                : GetComponent<LegendsOfTheUniverse.Presentation.CardView>();
+            if (presentation != null)
+                LegendsOfTheUniverse.Presentation.CardMagnifyView.NotifyPointerOver(presentation);
+        }
+
         void OnMouseDown()
         {
             if (tableRoot == null)
