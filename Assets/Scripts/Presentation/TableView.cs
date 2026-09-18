@@ -19,17 +19,19 @@ namespace LegendsOfTheUniverse.Presentation
 
         [Header("Camera")]
         [SerializeField] Camera tableCamera;
-        [SerializeField] float cameraHeight = 10f;
+        [SerializeField] float cameraHeight = 14f;
         [SerializeField] bool orthographic = true;
-        [SerializeField] float orthographicSize = PlaymatZones.RecommendedOrthoSize;
+        [SerializeField] float orthographicSize = 20f;
+        [SerializeField] float cameraZoomMultiplier = 1f;
 
         [Header("Playmat")]
         [SerializeField] Transform matRoot;
         [SerializeField] Material playmatMaterial;
+        [SerializeField] Texture2D playmatTexture;
         [SerializeField] Color playmatColor = TablePresentation.MatBlack;
-        [Tooltip("Plane size in world units. X = width, Y = depth (vertical on screen).")]
-        [SerializeField] Vector2 matSize = new(PlaymatZones.MatWidth, PlaymatZones.MatDepth);
-        [SerializeField] Vector3 matPosition = PlaymatZones.MatCenter;
+        [Tooltip("Unity plane local scale (default plane is 10×10 units → world size = scale × 10).")]
+        [SerializeField] Vector3 matScale = new(7f, 1f, 4f);
+        [SerializeField] Vector3 matPosition = Vector3.zero;
 
         float lastFitAspect;
 
@@ -44,12 +46,24 @@ namespace LegendsOfTheUniverse.Presentation
             EnsurePlaymatAssets();
         }
 
+        public void ApplyLayoutSettings()
+        {
+            var layout = TableLayoutSettings.Active;
+            matScale = layout.MatScale;
+            matPosition = layout.MatPosition;
+            cameraHeight = layout.cameraHeight;
+            orthographicSize = layout.orthographicSize;
+            cameraZoomMultiplier = layout.cameraZoomMultiplier;
+            SetupMat();
+            SetupCamera();
+        }
+
         void Awake()
         {
+            TableLayoutSettings.EnsureLoaded();
             TablePresentation.ResetReady();
             EnsurePlaymatAssets();
-            SetupCamera();
-            SetupMat();
+            ApplyLayoutSettings();
             EnsureTableLight();
             TablePresentation.MarkReady();
         }
@@ -64,6 +78,9 @@ namespace LegendsOfTheUniverse.Presentation
                 playmatMaterial = Resources.Load<Material>("Playmat");
 #endif
             }
+
+            if (playmatTexture == null)
+                playmatTexture = BoardZoneArt.LoadOfficialPlaymat() ?? BoardZoneArt.LoadWillboundMat();
         }
 
         void SetupCamera()
@@ -185,7 +202,7 @@ namespace LegendsOfTheUniverse.Presentation
             }
 
             var material = new Material(playmatMaterial);
-            TablePresentation.ConfigurePlaymatMaterial(material, playmatColor);
+            TablePresentation.ConfigurePlaymatMaterial(material, playmatTexture, playmatColor);
             renderer.sharedMaterial = material;
             TablePresentation.EnsureRendererVisible(renderer);
         }
@@ -195,10 +212,10 @@ namespace LegendsOfTheUniverse.Presentation
             if (!orthographic || tableCamera == null)
                 return;
 
-            var bounds = PlaymatZones.GetTableContentBounds(PlaymatZones.TableFitMargin);
+            var bounds = PlaymatZones.GetPlaymatCameraBounds(PlaymatZones.PlaymatCameraMargin);
             var aspect = tableCamera.aspect > 0.01f ? tableCamera.aspect : (16f / 9f);
             var sizeForWidth = bounds.HalfWidth / aspect;
-            tableCamera.orthographicSize = Mathf.Max(orthographicSize, bounds.HalfDepth, sizeForWidth);
+            tableCamera.orthographicSize = Mathf.Max(orthographicSize, bounds.HalfDepth, sizeForWidth) * cameraZoomMultiplier;
             lastFitAspect = aspect;
         }
 
@@ -214,7 +231,14 @@ namespace LegendsOfTheUniverse.Presentation
 
         Vector3 GetMatScale()
         {
-            return new Vector3(matSize.x / 10f, 1f, matSize.y / 10f);
+            var scale = matScale;
+            if (scale.x <= 0.01f)
+                scale.x = PlaymatZones.MatScaleX;
+            if (scale.y <= 0.01f)
+                scale.y = 1f;
+            if (scale.z <= 0.01f)
+                scale.z = PlaymatZones.MatScaleZ;
+            return scale;
         }
 
         void MarkDirty()
@@ -244,7 +268,10 @@ namespace LegendsOfTheUniverse.Presentation
             if (this == null)
                 return;
 
-            SetupMat();
+            if (Application.isPlaying)
+                ApplyLayoutSettings();
+            else
+                SetupMat();
         }
 #endif
     }

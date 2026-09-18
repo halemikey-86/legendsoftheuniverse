@@ -1,8 +1,8 @@
 using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
-using Willbound.Engine;
+using global::Willbound.Engine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>Path A solo host — delegates to TableMatchBridge.</summary>
     [DisallowMultipleComponent]

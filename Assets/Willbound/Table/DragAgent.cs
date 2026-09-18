@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Pickup / drag / drop grammar. Sends actions to the host; never parents before accept.
@@ -15,8 +15,9 @@ namespace Willbound.Table
     {
         [SerializeField] TableBinder binder;
         [SerializeField] OfflineTableActionHost actionHost;
+        [SerializeField] HandView handView;
         [SerializeField] Camera tableCamera;
-        [SerializeField] LayerMask cardLayerMask = ~0;
+        [SerializeField] LayerMask cardLayerMask = ~(1 << 2);
         [SerializeField] float pickRayDistance = 100f;
 
         CardView draggingCard;
@@ -31,6 +32,8 @@ namespace Willbound.Table
                 binder = GetComponent<TableBinder>();
             if (actionHost == null)
                 actionHost = GetComponent<OfflineTableActionHost>();
+            if (handView == null)
+                handView = GetComponent<HandView>();
             if (tableCamera == null)
                 tableCamera = Camera.main;
 
@@ -62,6 +65,9 @@ namespace Willbound.Table
             if (tableCard.InstanceId <= 0)
                 return;
 
+            if (handView != null && tableCard.Presentation != null && handView.ContainsHandCard(tableCard.Presentation))
+                return;
+
             if (!binder.CanPickup(tableCard.InstanceId))
                 return;
 
@@ -69,6 +75,9 @@ namespace Willbound.Table
             draggingInstanceId = tableCard.InstanceId;
             draggingCard.BeginDrag();
             UpdateZoneHighlights();
+            CardDragDropController.Instance?.HighlightZonesForInstance(
+                draggingInstanceId,
+                draggingCard.transform.position);
         }
 
         void ContinueDrag()
@@ -79,6 +88,7 @@ namespace Willbound.Table
             var world = ScreenToWorldOnTable(GetPointerScreenPosition());
             draggingCard.UpdateDrag(world);
             UpdateZoneHighlights();
+            CardDragDropController.Instance?.UpdatePlacementBeams(draggingCard.transform.position);
         }
 
         void EndDrag()
@@ -88,11 +98,12 @@ namespace Willbound.Table
 
             var accepted = false;
             string error = null;
-            var dropZone = FindDropZone(draggingCard.transform.position);
+            var dropPoint = ScreenToWorldOnTable(GetPointerScreenPosition());
+            var dropZone = FindDropZone(dropPoint);
 
             int? targetId = null;
             if (dropZone != null && dropZone.Kind == TableZoneKind.Field)
-                targetId = FindTargetInstanceId(draggingCard.transform.position);
+                targetId = FindTargetInstanceId(dropPoint);
 
             if (dropZone != null && binder.IsLegalDrop(draggingInstanceId, dropZone.Kind, targetId))
             {
@@ -104,6 +115,7 @@ namespace Willbound.Table
 
             draggingCard.EndDrag(accepted);
             ClearZoneHighlights();
+            CardDragDropController.Instance?.ClearZoneHighlights();
 
             if (!accepted && !string.IsNullOrEmpty(error))
                 Debug.Log($"[DragAgent] Rejected: {error}");
@@ -114,13 +126,23 @@ namespace Willbound.Table
 
         ZoneView FindDropZone(Vector3 worldPoint)
         {
+            ZoneView best = null;
+            var bestArea = float.MaxValue;
             for (var i = 0; i < zones.Count; i++)
             {
-                if (zones[i] != null && zones[i].ContainsPoint(worldPoint))
-                    return zones[i];
+                var zone = zones[i];
+                if (zone == null || !zone.ContainsPoint(worldPoint))
+                    continue;
+
+                var area = zone.DropArea;
+                if (area >= bestArea)
+                    continue;
+
+                bestArea = area;
+                best = zone;
             }
 
-            return null;
+            return best;
         }
 
         void UpdateZoneHighlights()

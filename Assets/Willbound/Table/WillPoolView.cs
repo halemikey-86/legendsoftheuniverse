@@ -2,7 +2,7 @@ using System.Collections;
 using LegendsOfTheUniverse.Presentation;
 using UnityEngine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Will pool display + payment cinema (coins/pips soak into card Will badge).

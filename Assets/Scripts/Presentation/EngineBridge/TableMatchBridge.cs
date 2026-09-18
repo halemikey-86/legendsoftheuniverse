@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Rules;
 using UnityEngine;
-using Willbound.Engine;
+using global::Willbound.Engine;
+using EngineEvent = global::Willbound.Engine.GameEvent;
+using EngineStoreActionKind = global::Willbound.Engine.StoreActionKind;
 
 namespace LegendsOfTheUniverse.Presentation.EngineBridge
 {
@@ -24,7 +26,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
         MatchRunner runner;
         InMemoryCardDatabase database;
-        readonly Queue<GameEvent> eventQueue = new Queue<GameEvent>();
+        readonly Queue<EngineEvent> eventQueue = new Queue<EngineEvent>();
 
         public bool IsActive => runner != null;
         public MatchRunner Runner => runner;
@@ -32,7 +34,15 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
         public event Action<TurnStep, bool> PhaseStateChanged;
         public event Action<string> EngineError;
-        public event Action<IReadOnlyList<GameEvent>> EngineEventsApplied;
+        public event Action<IReadOnlyList<EngineEvent>> EngineEventsApplied;
+
+        public void ReportEngineError(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return;
+
+            EngineError?.Invoke(message);
+        }
 
         void Awake()
         {
@@ -74,7 +84,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             catch (System.Exception ex)
             {
                 Debug.LogError($"[TableMatchBridge] Failed to start engine match: {ex.Message}");
-                EngineError?.Invoke("Rules engine failed to start — solo UI will continue without engine validation.");
+                ReportEngineError("Rules engine failed to start — solo UI will continue without engine validation.");
             }
         }
 
@@ -86,7 +96,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             var result = ApplyWithAutoPass(action);
             if (!result.Success)
             {
-                EngineError?.Invoke(result.Error);
+                ReportEngineError(result.Error);
                 return result;
             }
 
@@ -115,7 +125,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             if (!result.Success)
             {
                 error = result.Error;
-                EngineError?.Invoke(error);
+                ReportEngineError(error);
                 return false;
             }
 
@@ -131,12 +141,14 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             if (!IsActive)
             {
                 error = "Engine not active.";
+                ReportEngineError(error);
                 return false;
             }
 
             if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
             {
                 error = "Store actions are only available during your Main phase (once per turn).";
+                ReportEngineError(error);
                 return false;
             }
 
@@ -145,19 +157,44 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 Kind = PlayerActionKind.StoreBuy,
                 PlayerId = localPlayerId,
                 StoreSlotIndex = storeSlotIndex,
-                StoreKind = StoreActionKind.Buy,
+                StoreKind = EngineStoreActionKind.Buy,
             });
 
             if (!result.Success)
             {
                 error = result.Error;
-                EngineError?.Invoke(error);
+                ReportEngineError(error);
                 return false;
             }
 
             ProcessEvents(result.Events);
             SyncHudFromEngine();
             RaisePhaseChanged(false);
+            return true;
+        }
+
+        /// <summary>Pass priority until the store stack resolves (solo auto-pass for local + opponent).</summary>
+        public bool TryResolveStoreStack(out string error)
+        {
+            error = null;
+            if (!IsActive)
+                return true;
+
+            for (var i = 0; i < MaxAutoPasses; i++)
+            {
+                if (runner.Match.Stack.Count == 0)
+                    return true;
+
+                if (!TryPassPriority(out error))
+                    return false;
+            }
+
+            if (runner.Match.Stack.Count > 0)
+            {
+                error = "Store action is still resolving.";
+                return false;
+            }
+
             return true;
         }
 
@@ -174,13 +211,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             {
                 Kind = PlayerActionKind.StoreKeep,
                 PlayerId = localPlayerId,
-                StoreKind = StoreActionKind.Keep,
+                StoreKind = EngineStoreActionKind.Keep,
             });
 
             if (!result.Success)
             {
                 error = result.Error;
-                EngineError?.Invoke(error);
+                ReportEngineError(error);
                 return false;
             }
 
@@ -231,13 +268,13 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
         }
 
-        public void OnEvent(GameEvent e)
+        public void OnEvent(EngineEvent e)
         {
             if (e != null)
                 eventQueue.Enqueue(e);
         }
 
-        void ProcessEvents(IReadOnlyList<GameEvent> events)
+        void ProcessEvents(IReadOnlyList<EngineEvent> events)
         {
             if (events == null)
                 return;
@@ -246,7 +283,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 HandleEvent(events[i]);
         }
 
-        void HandleEvent(GameEvent e)
+        void HandleEvent(EngineEvent e)
         {
             switch (e.Kind)
             {
@@ -352,7 +389,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             PhaseStateChanged?.Invoke(CurrentTurnStep, discardPending);
         }
 
-        static bool TryInt(GameEvent e, string key, out int value)
+        static bool TryInt(EngineEvent e, string key, out int value)
         {
             value = 0;
             if (e?.Data == null || !e.Data.TryGetValue(key, out var raw) || raw == null)

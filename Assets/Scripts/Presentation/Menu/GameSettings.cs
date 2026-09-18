@@ -1,3 +1,4 @@
+using LegendsOfTheUniverse.Presentation;
 using UnityEngine;
 
 namespace LegendsOfTheUniverse.Presentation.Menu
@@ -9,6 +10,7 @@ namespace LegendsOfTheUniverse.Presentation.Menu
         const string MusicVolumeKey = "settings.musicVolume";
         const string FullscreenKey = "settings.fullscreen";
         const string QualityKey = "settings.quality";
+        const string CardBackNameKey = "settings.cardBackName";
 
         public static float MasterVolume
         {
@@ -42,6 +44,36 @@ namespace LegendsOfTheUniverse.Presentation.Menu
 
         public static float EffectiveSfxVolume => MasterVolume * SfxVolume;
         public static float EffectiveMusicVolume => MasterVolume * MusicVolume;
+
+        public static string CardBackName
+        {
+            get => PlayerPrefs.GetString(CardBackNameKey, string.Empty);
+            set => PlayerPrefs.SetString(CardBackNameKey, value ?? string.Empty);
+        }
+
+        public static Texture2D GetSelectedCardBack()
+        {
+            var backs = CardCatalog.LoadCardBacks();
+            if (backs.Count == 0)
+                return null;
+
+            if (!string.IsNullOrEmpty(CardBackName))
+            {
+                for (var i = 0; i < backs.Count; i++)
+                {
+                    if (backs[i] != null && backs[i].name == CardBackName)
+                        return backs[i];
+                }
+            }
+
+            return CardCatalog.GetDefaultCardBack();
+        }
+
+        public static void SetSelectedCardBack(Texture2D backTexture)
+        {
+            CardBackName = backTexture != null ? backTexture.name : string.Empty;
+            PlayerPrefs.Save();
+        }
 
         public static void ApplyAll()
         {

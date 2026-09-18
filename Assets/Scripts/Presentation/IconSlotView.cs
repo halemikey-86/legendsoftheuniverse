@@ -13,17 +13,30 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] CardView cardPrefab;
 
         [Header("Slot")]
-        [SerializeField] Vector3 slotPosition = PlaymatZones.Icon;
-        [SerializeField] float iconScale = PlaymatZones.IconScale;
+        [SerializeField] Vector3 slotPosition = new(-19.5f, 0.45f, -9.2f);
+        [SerializeField] float iconScale = 3.8f;
         [SerializeField] float placeAnimDuration = 0.4f;
 
         [Header("Inspect")]
         [SerializeField] Vector3 inspectPosition = new(-4f, 0.1f, 1.5f);
-        [SerializeField] float inspectScale = PlaymatZones.IconScale;
+        [SerializeField] float inspectScale = 3.8f;
         [SerializeField] float inspectAnimDuration = 0.25f;
 
         CardView iconCard;
         bool inspecting;
+
+        public void ApplyLayoutSettings()
+        {
+            slotPosition = PlaymatZones.Icon;
+            iconScale = PlaymatZones.IconScale;
+            inspectScale = PlaymatZones.IconScale;
+
+            if (iconCard != null)
+            {
+                iconCard.transform.position = slotPosition;
+                iconCard.SetCardScale(iconScale);
+            }
+        }
 
         public CardView IconCard => iconCard;
         public Texture2D SelectedIcon => iconCard != null ? iconCard.FrontTexture : null;
@@ -62,15 +75,8 @@ namespace LegendsOfTheUniverse.Presentation
             if (iconCard == null || card != iconCard)
                 return;
 
-            if (inspecting)
-            {
-                ClearInspectSelection();
-                return;
-            }
-
-            inspecting = true;
-            iconCard.transform.SetAsLastSibling();
-            StartCoroutine(InspectIconRoutine());
+            inspecting = false;
+            CardSideReaderView.Instance?.Show(card, "Legendary Icon");
         }
 
         public void ClearInspectSelection()

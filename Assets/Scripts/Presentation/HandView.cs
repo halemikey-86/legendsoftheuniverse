@@ -35,10 +35,26 @@ namespace LegendsOfTheUniverse.Presentation
             keptHandCenter.y = PlaymatZones.HandY;
         }
 
+        public void ApplyLayoutSettings()
+        {
+            var layout = TableLayoutSettings.Active;
+            dealScale = layout.cardScale;
+            keptScale = layout.cardScale;
+            inspectScale = layout.cardScale;
+            dealHandCenter = PlaymatZones.OpeningHandCenter;
+            keptHandCenter = PlaymatZones.HandCenter;
+            dealSpreadSpacing = layout.dealHandSpreadSpacing;
+            keptSpreadSpacing = layout.keptHandSpreadSpacing;
+            SyncTableHeights();
+
+            if (handCards.Count > 0)
+                StartCoroutine(LayoutKeptHandRoutine(0.05f));
+        }
+
         [Header("Opening Spread")]
         [SerializeField] int openingHandSize = 7;
-        [SerializeField] float dealScale = PlaymatZones.CardScale;
-        [SerializeField] Vector3 dealHandCenter = PlaymatZones.OpeningHandCenter;
+        [SerializeField] float dealScale = 2.6f;
+        [SerializeField] Vector3 dealHandCenter = new(0f, 0.42f, -1.5f);
         [SerializeField] float dealSpreadSpacing = 4.26f;
         [SerializeField] float dealDuration = 0.35f;
         [SerializeField] float dealStagger = 0.05f;
@@ -46,8 +62,8 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float flipStagger = 0.04f;
 
         [Header("Kept Hand (bottom of table)")]
-        [SerializeField] float keptScale = PlaymatZones.CardScale;
-        [SerializeField] Vector3 keptHandCenter = PlaymatZones.HandCenter;
+        [SerializeField] float keptScale = 2.6f;
+        [SerializeField] Vector3 keptHandCenter = new(0f, 0.42f, -9.5f);
         [SerializeField] float keptSpreadSpacing = 4.26f;
         [SerializeField] float keepAnimDuration = 0.45f;
 
@@ -58,7 +74,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float hoverAnimDuration = 0.12f;
 
         [Header("Inspect")]
-        [SerializeField] float inspectScale = PlaymatZones.CardScale;
+        [SerializeField] float inspectScale = 2.6f;
         [SerializeField] Vector3 inspectPosition = new(0f, 0.1f, -1.5f);
         [SerializeField] float inspectAnimDuration = 0.25f;
 
@@ -96,6 +112,37 @@ namespace LegendsOfTheUniverse.Presentation
         public CardView GetOpeningHandCardAt(int index) =>
             index >= 0 && index < handCards.Count ? handCards[index] : null;
         public bool ContainsHandCard(CardView card) => card != null && handCards.Contains(card);
+
+        public void RemoveCardAfterPlayed(int instanceId)
+        {
+            for (var i = 0; i < handCards.Count; i++)
+            {
+                var card = handCards[i];
+                if (card == null)
+                    continue;
+
+                var binding = card.GetComponent<TableCardBinding>();
+                if (binding != null && binding.InstanceId == instanceId)
+                {
+                    RemoveCardFromHand(card, relayout: true);
+                    return;
+                }
+            }
+        }
+
+        void RemoveCardFromHand(CardView card, bool relayout)
+        {
+            if (card == null || !handCards.Remove(card))
+                return;
+
+            selectedCard = null;
+            hoveredCard = null;
+            Destroy(card.gameObject);
+
+            if (relayout)
+                StartCoroutine(LayoutKeptHandRoutine(dragReorderDuration));
+        }
+        public IReadOnlyList<CardView> KeptHandCards => handCards;
         public bool IsDragging => draggingCard != null;
         public bool CanClickCards => handKept && !IsDealing;
         public bool CanReorderCards =>
@@ -105,7 +152,15 @@ namespace LegendsOfTheUniverse.Presentation
             && selectedCard == null
             && draggingCard == null
             && (storeActions == null || storeActions.CurrentMode == StoreActionMode.None);
+        public bool CanDragToZones => handKept && !IsDealing && !discardMode;
         public bool HasInspectSelection => selectedCard != null;
+        public bool HasPointerCard => pointerCard != null;
+
+        public bool TryGetPointerCard(out CardView card)
+        {
+            card = pointerCard;
+            return pointerCard != null;
+        }
 
         public void BindStoreActions(StoreActionController controller)
         {
@@ -328,13 +383,16 @@ namespace LegendsOfTheUniverse.Presentation
             if (!CanClickCards && !IsOpeningReview)
                 return;
 
-            if (handKept && storeActions != null && storeActions.CurrentMode != StoreActionMode.None)
+            if (handKept)
             {
-                storeActions.HandleHandCardClicked(card);
+                if (storeActions != null)
+                    storeActions.OpenHandCardReader(card);
+                else
+                    CardSideReaderView.Instance?.Show(card);
                 return;
             }
 
-            HandleInspectCard(card);
+            CardSideReaderView.Instance?.Show(card);
         }
 
         IEnumerator DiscardFromHandRoutine(CardView card)
@@ -372,7 +430,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (pointerCard != card || !handCards.Contains(card))
                 return;
 
-            if (!CanReorderCards)
+            if (!CanReorderCards && !CanDragToZones)
                 return;
 
             if (!pointerDragStarted)
@@ -407,6 +465,7 @@ namespace LegendsOfTheUniverse.Presentation
             hoveredCard = null;
             card.transform.SetAsLastSibling();
             card.SetCardScale(keptScale * hoverScaleMultiplier);
+            CardDragDropController.Instance?.HighlightZonesForCard(card);
         }
 
         void UpdateDragPosition(CardView card)
@@ -417,6 +476,7 @@ namespace LegendsOfTheUniverse.Presentation
             worldPosition.y += dragLift;
             card.transform.position = worldPosition;
             card.transform.rotation = CardView.TableRotation;
+            CardDragDropController.Instance?.UpdatePlacementBeams(card.transform.position);
         }
 
         void EndDrag(CardView card)
@@ -425,6 +485,30 @@ namespace LegendsOfTheUniverse.Presentation
             if (oldIndex < 0)
             {
                 draggingCard = null;
+                CardDragDropController.Instance?.ClearZoneHighlights();
+                return;
+            }
+
+            var dropPoint = TryGetPointerWorldPositionOnTable(out var pointerOnTable)
+                ? pointerOnTable
+                : card.transform.position;
+
+            var moved = Vector3.Distance(GetMouseScreenPosition(), pointerDownScreen);
+            if (CardDragDropController.Instance != null
+                && moved >= dragScreenThreshold
+                && CardDragDropController.Instance.TryDropHandCard(card, dropPoint))
+            {
+                draggingCard = null;
+                RemoveCardFromHand(card, relayout: true);
+                return;
+            }
+
+            CardDragDropController.Instance?.ClearZoneHighlights();
+
+            if (moved < dragScreenThreshold)
+            {
+                draggingCard = null;
+                HandleCardClicked(card);
                 return;
             }
 
@@ -474,16 +558,7 @@ namespace LegendsOfTheUniverse.Presentation
             return true;
         }
 
-        static Vector3 GetMouseScreenPosition()
-        {
-#if ENABLE_INPUT_SYSTEM
-            return Mouse.current != null
-                ? (Vector3)Mouse.current.position.ReadValue()
-                : Input.mousePosition;
-#else
-            return Input.mousePosition;
-#endif
-        }
+        static Vector3 GetMouseScreenPosition() => TablePointerInput.ScreenPosition;
 
         public void HandleInspectCard(CardView card)
         {
@@ -687,15 +762,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (camera == null || card == null)
                 return false;
 
-#if ENABLE_INPUT_SYSTEM
-            var screenPosition = Mouse.current != null
-                ? Mouse.current.position.ReadValue()
-                : (Vector2)Input.mousePosition;
-#else
-            var screenPosition = (Vector2)Input.mousePosition;
-#endif
-
-            var ray = camera.ScreenPointToRay(screenPosition);
+            var ray = camera.ScreenPointToRay(TablePointerInput.ScreenPosition);
             if (!Physics.Raycast(ray, out var hit, 100f))
                 return false;
 

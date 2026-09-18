@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation;
 using LegendsOfTheUniverse.Presentation.EngineBridge;
 using UnityEngine;
-using Willbound.Engine;
+using global::Willbound.Engine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
+    using EngineCardView = CardView;
+
     /// <summary>
     /// Engine A orchestrator — mat zones, drag table, cinema hooks. Path A: hides setup UI after match.
     /// </summary>
@@ -29,11 +31,10 @@ namespace Willbound.Table
         [SerializeField] Camera tableCamera;
 
         [Header("Setup UI to hide after match")]
-        [SerializeField] GameObject[] hideAfterMatch;
+        [SerializeField] GameObject[] hideAfterMatch = System.Array.Empty<GameObject>();
 
-        readonly Dictionary<int, Willbound.Table.CardView> engineHandCards = new();
-        readonly Dictionary<int, Willbound.Table.CardView> engineFieldCards = new();
-        Transform dropZonesRoot;
+        readonly Dictionary<int, EngineCardView> engineHandCards = new();
+        readonly Dictionary<int, EngineCardView> engineFieldCards = new();
         Transform engineFieldRoot;
         bool matchTableEnabled;
 
@@ -42,7 +43,6 @@ namespace Willbound.Table
         void Awake()
         {
             ResolveReferences();
-            BuildDropZones();
         }
 
         void OnEnable()
@@ -109,46 +109,24 @@ namespace Willbound.Table
             matchTableEnabled = true;
             ResolveReferences();
 
-            for (var i = 0; i < hideAfterMatch.Length; i++)
+            if (hideAfterMatch != null)
             {
-                if (hideAfterMatch[i] != null)
-                    hideAfterMatch[i].SetActive(false);
+                for (var i = 0; i < hideAfterMatch.Length; i++)
+                {
+                    if (hideAfterMatch[i] != null)
+                        hideAfterMatch[i].SetActive(false);
+                }
+            }
+
+            if (matchBridge != null)
+            {
+                matchBridge.EngineEventsApplied -= OnEngineEvents;
+                matchBridge.EngineEventsApplied += OnEngineEvents;
             }
 
             binder?.RefreshSnapshot();
             SyncEngineHandViews();
             SyncEngineFieldViews();
-        }
-
-        void BuildDropZones()
-        {
-            if (dropZonesRoot == null)
-            {
-                var existing = transform.Find("DropZones");
-                dropZonesRoot = existing != null
-                    ? existing
-                    : new GameObject("DropZones").transform;
-                dropZonesRoot.SetParent(transform, false);
-            }
-
-            CreateZone("FieldDrop", TableZoneKind.Field, PlaymatZones.FieldCenter, new Vector3(6f, 0.2f, 8f));
-            CreateZone("WillwellDrop", TableZoneKind.Willwell, PlaymatZones.Willwell, new Vector3(3f, 0.2f, 3f));
-            CreateZone("StackWellDrop", TableZoneKind.StackWell, PlaymatZones.StackWell, new Vector3(2.5f, 0.2f, 2.5f));
-            CreateZone("HoldPlateDrop", TableZoneKind.HoldPlate, PlaymatZones.HoldPlate, new Vector3(2.5f, 0.2f, 2.5f));
-            CreateZone("HandWellDrop", TableZoneKind.Hand, PlaymatZones.HandCenter, new Vector3(8f, 0.2f, 3f));
-            CreateZone("StoreDrop", TableZoneKind.Store, PlaymatZones.StoreRowCenter, new Vector3(18f, 0.2f, 2f));
-        }
-
-        void CreateZone(string name, TableZoneKind kind, Vector3 center, Vector3 size)
-        {
-            if (dropZonesRoot.Find(name) != null)
-                return;
-
-            var go = new GameObject(name);
-            go.transform.SetParent(dropZonesRoot, false);
-            go.transform.position = new Vector3(center.x, PlaymatZones.CardY, center.z);
-            var zone = go.AddComponent<ZoneView>();
-            zone.Configure(kind, size);
         }
 
         void OnEngineEvents(IReadOnlyList<GameEvent> events)
@@ -218,7 +196,9 @@ namespace Willbound.Table
                 if (obj.StackId != stackId)
                     continue;
 
-                if (obj.PaidWill > 0 && binder.TryGetCardView(obj.SourceInstanceId, out var view))
+                if (obj.PaidWill > 0
+                    && obj.SourceInstanceId.HasValue
+                    && binder.TryGetCardView(obj.SourceInstanceId.Value, out var view))
                     willPoolView?.PlayWillRefund(obj.PaidWill, view.transform.position);
                 break;
             }
@@ -236,7 +216,9 @@ namespace Willbound.Table
                 if (obj.StackId != stackId || obj.Type != StackObjectType.PlayCard || obj.PaidWill <= 0)
                     continue;
 
-                if (binder != null && binder.TryGetCardView(obj.SourceInstanceId, out var view))
+                if (binder != null
+                    && obj.SourceInstanceId.HasValue
+                    && binder.TryGetCardView(obj.SourceInstanceId.Value, out var view))
                     willPoolView?.PlayWillPayment(obj.PaidWill, view.transform.position);
                 break;
             }
@@ -244,50 +226,71 @@ namespace Willbound.Table
 
         void SyncEngineHandViews()
         {
-            if (!matchTableEnabled || binder == null || cardPrefab == null || engineHandRoot == null)
+            if (!matchTableEnabled || binder == null || handView == null)
                 return;
 
+            ClearEngineHandDuplicates();
+
             var snap = binder.Snapshot;
-            var seen = new HashSet<int>();
+            var presentationHand = handView.KeptHandCards;
+            var bindCount = Mathf.Min(presentationHand.Count, snap.LocalHand.Count);
 
-            for (var i = 0; i < snap.LocalHand.Count; i++)
+            if (presentationHand.Count != snap.LocalHand.Count)
             {
-                var card = snap.LocalHand[i];
-                seen.Add(card.InstanceId);
-
-                if (!engineHandCards.TryGetValue(card.InstanceId, out var view) || view == null)
-                {
-                    var shell = Instantiate(cardPrefab, engineHandRoot);
-                    shell.name = $"EngineHand_{card.InstanceId}";
-                    view = shell.gameObject.GetComponent<Willbound.Table.CardView>();
-                    if (view == null)
-                        view = shell.gameObject.AddComponent<Willbound.Table.CardView>();
-
-                    engineHandCards[card.InstanceId] = view;
-                    binder.RegisterCardView(card.InstanceId, view);
-                }
-
-                var pos = HandSlotPosition(i, snap.LocalHand.Count);
-                view.transform.position = pos;
-                view.transform.rotation = LegendsOfTheUniverse.Presentation.CardView.TableRotation;
-                view.SetExhausted(card.Exhausted);
-                view.SetHealth(card.CurrentHealth, card.Health);
-                view.RememberHome();
+                Debug.LogWarning(
+                    $"[TableRoot] Hand size mismatch — UI={presentationHand.Count}, engine={snap.LocalHand.Count}. " +
+                    $"Binding by index for the first {bindCount} cards.");
             }
 
-            var remove = new List<int>();
+            var engineIds = new HashSet<int>();
+            for (var i = 0; i < snap.LocalHand.Count; i++)
+                engineIds.Add(snap.LocalHand[i].InstanceId);
+
+            for (var i = presentationHand.Count - 1; i >= 0; i--)
+            {
+                var presentationCard = presentationHand[i];
+                if (presentationCard == null)
+                    continue;
+
+                var binding = presentationCard.GetComponent<TableCardBinding>();
+                if (binding != null && binding.InstanceId > 0 && !engineIds.Contains(binding.InstanceId))
+                    handView.RemoveCardAfterPlayed(binding.InstanceId);
+            }
+
+            for (var i = 0; i < bindCount; i++)
+            {
+                var presentationCard = presentationHand[i];
+                if (presentationCard == null)
+                    continue;
+
+                var engineCard = snap.LocalHand[i];
+                BindPresentationCard(presentationCard, engineCard);
+            }
+        }
+
+        void BindPresentationCard(LegendsOfTheUniverse.Presentation.CardView presentationCard, CardSnapshot engineCard)
+        {
+            var binding = presentationCard.GetComponent<TableCardBinding>()
+                ?? presentationCard.gameObject.AddComponent<TableCardBinding>();
+            binding.Bind(engineCard.InstanceId);
+
+            var tableCard = presentationCard.GetComponent<EngineCardView>()
+                ?? presentationCard.gameObject.AddComponent<EngineCardView>();
+            tableCard.BindInstance(engineCard.InstanceId);
+            tableCard.SetExhausted(engineCard.Exhausted);
+            tableCard.SetHealth(engineCard.CurrentHealth, engineCard.Health);
+            binder.RegisterCardView(engineCard.InstanceId, tableCard);
+        }
+
+        void ClearEngineHandDuplicates()
+        {
             foreach (var pair in engineHandCards)
             {
-                if (!seen.Contains(pair.Key))
-                {
-                    if (pair.Value != null)
-                        Destroy(pair.Value.gameObject);
-                    remove.Add(pair.Key);
-                }
+                if (pair.Value != null)
+                    Destroy(pair.Value.gameObject);
             }
 
-            for (var i = 0; i < remove.Count; i++)
-                engineHandCards.Remove(remove[i]);
+            engineHandCards.Clear();
         }
 
         void SyncEngineFieldViews()
@@ -319,8 +322,11 @@ namespace Willbound.Table
                 {
                     var shell = Instantiate(cardPrefab, engineFieldRoot);
                     shell.name = $"EngineField_{card.InstanceId}";
-                    view = shell.gameObject.GetComponent<Willbound.Table.CardView>()
-                        ?? shell.gameObject.AddComponent<Willbound.Table.CardView>();
+                    view = shell.gameObject.GetComponent<CardView>()
+                        ?? shell.gameObject.AddComponent<CardView>();
+                    var binding = shell.gameObject.GetComponent<TableCardBinding>()
+                        ?? shell.gameObject.AddComponent<TableCardBinding>();
+                    binding.Bind(card.InstanceId);
                     engineFieldCards[card.InstanceId] = view;
                     binder.RegisterCardView(card.InstanceId, view);
                 }
@@ -328,7 +334,11 @@ namespace Willbound.Table
                 var slotIndex = i % PlaymatZones.FieldSlotCount;
                 var pos = PlaymatZones.GetFieldSlot(slotIndex);
                 if (card.ControllerId != snap.LocalPlayerId)
-                    pos.z = PlaymatZones.FieldCenter.z + 4.5f + (slotIndex * PlaymatZones.FieldSlotSpacing);
+                {
+                    PlaymatZones.DecomposeFieldSlotIndex(slotIndex, out var row, out var column);
+                    pos = PlaymatZones.GetFieldDropSlotPosition(row, column);
+                    pos.z += PlaymatZones.FieldDropSlotSpacing.y;
+                }
 
                 view.transform.position = pos;
                 view.transform.rotation = LegendsOfTheUniverse.Presentation.CardView.TableRotation;

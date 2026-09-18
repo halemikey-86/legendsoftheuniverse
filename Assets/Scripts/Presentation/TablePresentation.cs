@@ -21,21 +21,38 @@ namespace LegendsOfTheUniverse.Presentation
 
         public static void MarkReady() => IsReady = true;
 
-        public static void ConfigurePlaymatMaterial(Material material, Color color)
+        public static void ConfigurePlaymatMaterial(Material material, Color color) =>
+            ConfigurePlaymatMaterial(material, null, color);
+
+        public static void ConfigurePlaymatMaterial(Material material, Texture2D texture, Color fallbackColor)
         {
             if (material == null)
                 return;
 
             EnsureCompatibleMeshShader(material);
 
-            material.color = color;
-            if (material.HasProperty("_BaseColor"))
-                material.SetColor("_BaseColor", color);
-            if (material.HasProperty("_Color"))
-                material.SetColor("_Color", color);
-            if (material.HasProperty("_BaseMap"))
-                material.SetTexture("_BaseMap", null);
-            material.mainTexture = null;
+            if (texture != null)
+            {
+                material.mainTexture = texture;
+                if (material.HasProperty("_BaseMap"))
+                    material.SetTexture("_BaseMap", texture);
+                material.color = Color.white;
+                if (material.HasProperty("_BaseColor"))
+                    material.SetColor("_BaseColor", Color.white);
+                if (material.HasProperty("_Color"))
+                    material.SetColor("_Color", Color.white);
+            }
+            else
+            {
+                material.color = fallbackColor;
+                if (material.HasProperty("_BaseColor"))
+                    material.SetColor("_BaseColor", fallbackColor);
+                if (material.HasProperty("_Color"))
+                    material.SetColor("_Color", fallbackColor);
+                if (material.HasProperty("_BaseMap"))
+                    material.SetTexture("_BaseMap", null);
+                material.mainTexture = null;
+            }
 
             material.renderQueue = PlaymatRenderQueue;
             if (material.HasProperty("_ZWrite"))

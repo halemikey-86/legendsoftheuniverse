@@ -32,7 +32,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] Texture2D frontTexture;
 
         [Header("Size")]
-        [SerializeField] float cardScale = PlaymatZones.CardScale;
+        [SerializeField] float cardScale = 2.6f;
         [SerializeField] float cardThickness = 0.012f;
         [SerializeField] bool faceUp;
 

@@ -27,8 +27,8 @@ Transform:
   m_GameObject: {fileID: 7283645566778899001}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: 0, y: -0.5, z: 1.5}
-  m_LocalScale: {x: 3.2, y: 1, z: 1.8}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 7, y: 1, z: 4}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 6540175856232384187}
@@ -150,17 +150,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   tableCamera: {fileID: 0}
-  cameraHeight: 10
+  cameraHeight: 14
   orthographic: 1
-  orthographicSize: 11.5
+  orthographicSize: 16
+  cameraZoomMultiplier: 1
   arenaRoot: {fileID: 0}
   arenaPrefab: {fileID: 0}
   playmatLiftWhenArenaPresent: 0.025
   matRoot: {fileID: 7283645566778899002}
   playmatMaterial: {fileID: 2100000, guid: b7c3d4e5f6a7890123456789abcdef12, type: 2}
   playmatColor: {r: 0.035, g: 0.035, b: 0.042, a: 1}
-  matSize: {x: 32, y: 18}
-  matPosition: {x: 0, y: -0.5, z: 1.5}
+  playmatTexture: {fileID: 0}
+  matScale: {x: 7, y: 1, z: 4}
+  matPosition: {x: 0, y: 0, z: 0}
 --- !u!114 &8374728193847561040
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -472,7 +474,7 @@ Transform:
   m_GameObject: {fileID: 8374728193847561041}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 18.1, y: 0.12, z: -7.23}
+  m_LocalPosition: {x: 30.7, y: 0, z: -1.68}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

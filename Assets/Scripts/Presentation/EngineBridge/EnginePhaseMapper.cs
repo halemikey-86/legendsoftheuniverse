@@ -1,5 +1,5 @@
 using LegendsOfTheUniverse.Rules;
-using Willbound.Engine;
+using global::Willbound.Engine;
 
 namespace LegendsOfTheUniverse.Presentation.EngineBridge
 {

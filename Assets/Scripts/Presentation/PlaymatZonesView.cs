@@ -3,7 +3,7 @@ using UnityEngine;
 namespace LegendsOfTheUniverse.Presentation
 {
     /// <summary>
-    /// Builds all Willbound playmat zones on the table at runtime.
+    /// Builds all playmat zones on the table at runtime.
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(-150)]
@@ -15,8 +15,9 @@ namespace LegendsOfTheUniverse.Presentation
         public ZoneView Field { get; private set; }
         public ZoneView RelicBond { get; private set; }
         public ZoneView Deck { get; private set; }
-        public ZoneView Banished { get; private set; }
-        public DialView WillRound { get; private set; }
+        public ZoneView Discard { get; private set; }
+        public DialView Round { get; private set; }
+        public DialView Will { get; private set; }
         public DialView Worth { get; private set; }
         public DialView Honor { get; private set; }
 
@@ -72,8 +73,9 @@ namespace LegendsOfTheUniverse.Presentation
             Field = null;
             RelicBond = null;
             Deck = null;
-            Banished = null;
-            WillRound = null;
+            Discard = null;
+            Round = null;
+            Will = null;
             Worth = null;
             Honor = null;
         }
@@ -85,14 +87,15 @@ namespace LegendsOfTheUniverse.Presentation
 
             zonesBuilt = true;
 
-            Field = CreateSlotZone("Field", PlaymatZones.FieldCenter, PlaymatZones.FieldSlotCount);
             RelicBond = CreateSlotZone("Relic / Bond", PlaymatZones.RelicBondCenter, PlaymatZones.RelicBondSlotCount);
-            Deck = CreatePileZone("Deck", PlaymatZones.Deck, pileStackRotation: CardView.StackRotation);
-            Banished = CreatePileZone("Banished", PlaymatZones.Banished);
+            Deck = CreatePileZone("Deck", PlaymatZones.Deck, PlaymatZones.DeckCardScale, pileStackRotation: CardView.StackRotation);
+            Discard = CreatePileZone("Discard", PlaymatZones.Discard, PlaymatZones.PileCardScale);
 
-            WillRound = CreateDial(DialKind.WillRound, PlaymatZones.WillRoundTrack);
-            Worth = CreateDial(DialKind.Worth, PlaymatZones.Worth);
+            Round = CreateDial(DialKind.Round, PlaymatZones.RoundTrack);
+            Will = CreateDial(DialKind.Will, PlaymatZones.WillTrack);
+            Worth = CreateDial(DialKind.Worth, PlaymatZones.WorthTrack);
             Honor = CreateDial(DialKind.Honor, PlaymatZones.Honor);
+            ApplyLayoutSettings();
         }
 
         ZoneView CreateSlotZone(string label, Vector3 center, int slotCount)
@@ -107,7 +110,11 @@ namespace LegendsOfTheUniverse.Presentation
             return zone;
         }
 
-        ZoneView CreatePileZone(string label, Vector3 position, Quaternion? pileStackRotation = null)
+        ZoneView CreatePileZone(
+            string label,
+            Vector3 position,
+            float pileCardScale,
+            Quaternion? pileStackRotation = null)
         {
             var zoneObject = new GameObject(label.Replace(" ", string.Empty) + "Zone");
             zoneObject.transform.SetParent(transform, false);
@@ -115,6 +122,7 @@ namespace LegendsOfTheUniverse.Presentation
 
             var zone = zoneObject.AddComponent<ZoneView>();
             zone.SetCardPrefab(cardPrefab);
+            zone.SetPileCardScale(pileCardScale);
             zone.ConfigurePile(label, position, pileStackRotation);
             return zone;
         }
@@ -142,12 +150,12 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void SetRound(int round)
         {
-            WillRound?.SetRound(round);
+            Round?.SetRound(round);
         }
 
         public void SetWillPool(int will)
         {
-            WillRound?.SetWillPool(will);
+            Will?.SetWillPool(will);
         }
 
         public void SetWorth(int worth)
@@ -158,6 +166,32 @@ namespace LegendsOfTheUniverse.Presentation
         public void SetHonor(int honor)
         {
             Honor?.SetValue(honor);
+        }
+
+        public void AddToDiscard(CardView card)
+        {
+            Discard?.AddCardToPile(card);
+        }
+
+        public void ApplyLayoutSettings()
+        {
+            if (!zonesBuilt)
+                return;
+
+            RelicBond?.transform.SetPositionAndRotation(PlaymatZones.RelicBondCenter, Quaternion.identity);
+            Deck?.transform.SetPositionAndRotation(PlaymatZones.Deck, Quaternion.identity);
+            Deck?.SetPileCardScale(PlaymatZones.DeckCardScale);
+            Discard?.transform.SetPositionAndRotation(PlaymatZones.Discard, Quaternion.identity);
+
+            Round?.Configure(DialKind.Round, PlaymatZones.RoundTrack);
+            Will?.Configure(DialKind.Will, PlaymatZones.WillTrack);
+            Worth?.Configure(DialKind.Worth, PlaymatZones.WorthTrack);
+            Honor?.Configure(DialKind.Honor, PlaymatZones.Honor);
+
+            Round?.ApplyOverlaySettings();
+            Will?.ApplyOverlaySettings();
+            Worth?.ApplyOverlaySettings();
+            Honor?.ApplyOverlaySettings();
         }
     }
 }

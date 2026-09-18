@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using Willbound.Engine;
+using global::Willbound.Engine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Last known match frame for the local seat. Built from Engine B Match (offline)

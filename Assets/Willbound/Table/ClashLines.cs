@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using Willbound.Engine;
+using global::Willbound.Engine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Press targeting lines — attacker to target until Clash locks or Press skipped.

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
-using Willbound.Engine;
+using global::Willbound.Engine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Sole type that reads match JSON. Offline: builds from Engine B Match.
@@ -12,7 +12,9 @@ namespace Willbound.Table
     [DisallowMultipleComponent]
     public sealed class TableBinder : MonoBehaviour
     {
-        [SerializeField] OfflineTableActionHost actionHost;
+        [SerializeField] OfflineTableActionHost offlineActionHost;
+
+        ITableActionHost actionHost;
 
         TableSnapshot snapshot = new();
         readonly Dictionary<int, CardView> boundCards = new();
@@ -23,13 +25,15 @@ namespace Willbound.Table
 
         void Awake()
         {
+            if (offlineActionHost == null)
+                offlineActionHost = GetComponent<OfflineTableActionHost>();
             if (actionHost == null)
-                actionHost = GetComponent<OfflineTableActionHost>();
+                actionHost = offlineActionHost;
         }
 
         public void BindHost(ITableActionHost host)
         {
-            actionHost = host;
+            actionHost = host ?? offlineActionHost;
             RefreshSnapshot();
         }
 
@@ -201,8 +205,6 @@ namespace Willbound.Table
 
             return action;
         }
-
-        bool IsLegalDropInternal(int instanceId, TableZoneKind zone, int? targetInstanceId)
 
         public static TableSnapshot BuildSnapshot(Match match, int localPlayerId)
         {

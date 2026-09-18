@@ -61,6 +61,23 @@ namespace LegendsOfTheUniverse.Presentation
             }
         }
 
+        public Vector3 WorldOffset => worldOffset;
+
+        public bool LayoutPickable { get; private set; }
+
+        public void SetWorldOffset(Vector3 offset) => worldOffset = offset;
+
+        public void SetLayoutPickable(bool pickable)
+        {
+            LayoutPickable = pickable;
+            if (panelRect == null)
+                return;
+
+            var background = GetComponent<Image>();
+            if (background != null)
+                background.raycastTarget = pickable;
+        }
+
         public static WorldAnchoredUi CreateLabeled(
             Transform anchor,
             string title,
@@ -126,8 +143,8 @@ namespace LegendsOfTheUniverse.Presentation
             panelRect.pivot = new Vector2(0.5f, 0.5f);
 
             var background = gameObject.AddComponent<Image>();
-            background.color = labelSprite != null
-                ? new Color(1f, 1f, 1f, 0f)
+            background.color = !showTitle || labelSprite != null
+                ? Color.clear
                 : new Color(0.08f, 0.09f, 0.14f, 0.94f);
             background.raycastTarget = false;
 
@@ -149,7 +166,9 @@ namespace LegendsOfTheUniverse.Presentation
             valueText.fontSize = showTitle ? fontSize + 8 : fontSize;
             valueText.fontStyle = FontStyle.Bold;
             valueText.alignment = TextAnchor.MiddleCenter;
-            valueText.color = new Color(0.98f, 0.96f, 0.90f, 1f);
+            valueText.color = showTitle
+                ? new Color(0.98f, 0.96f, 0.90f, 1f)
+                : new Color(1f, 0.92f, 0.35f, 1f);
             valueText.raycastTarget = false;
             valueText.text = "0";
 
@@ -278,7 +297,7 @@ namespace LegendsOfTheUniverse.Presentation
             var canvasObject = new GameObject("PlaymatZoneUi");
             sharedCanvas = canvasObject.AddComponent<Canvas>();
             sharedCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            sharedCanvas.sortingOrder = 500;
+            sharedCanvas.sortingOrder = 200;
 
             var scaler = canvasObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;

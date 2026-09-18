@@ -14,16 +14,16 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] CardView cardPrefab;
 
         [Header("Layout")]
-        [SerializeField] Vector3 pickCenter = new(0f, PlaymatZones.CardY, 0.5f);
+        [SerializeField] Vector3 pickCenter = new(0f, 0.45f, 0.5f);
         [SerializeField] float pickSpacing = 5f;
-        [SerializeField] float pickCardScale = PlaymatZones.CardScale;
-        [SerializeField] float selectedScale = PlaymatZones.CardScale;
+        [SerializeField] float pickCardScale = 2.6f;
+        [SerializeField] float selectedScale = 2.6f;
         [SerializeField] float pickAnimDuration = 0.35f;
         [SerializeField] int pickChoiceCount = GameSetupConstants.LegendaryIconChoices;
 
         [Header("Inspect")]
         [SerializeField] Vector3 inspectPosition = new(-2f, 0.1f, 1.5f);
-        [SerializeField] float inspectScale = PlaymatZones.CardScale;
+        [SerializeField] float inspectScale = 2.6f;
         [SerializeField] float inspectPeerScaleMultiplier = 0.72f;
         [SerializeField] float inspectPeerZOffset = 0.75f;
         [SerializeField] float inspectAnimDuration = 0.25f;
@@ -50,13 +50,11 @@ namespace LegendsOfTheUniverse.Presentation
         {
             uiRoot = canvasRoot;
             tableCamera = camera;
-            choiceModal.EnsureBuilt(canvasRoot, camera);
+            if (canvasRoot != null)
+                choiceModal.EnsureBuilt(canvasRoot, camera);
         }
 
-        public void TickModal()
-        {
-            choiceModal.Tick();
-        }
+        public void TickModal() => choiceModal.Tick();
 
         public IEnumerator RunPickRoutine()
         {
@@ -102,18 +100,26 @@ namespace LegendsOfTheUniverse.Presentation
             if (pickComplete || !pickCards.Contains(card))
                 return;
 
-            if (inspectingCard != null && inspectingCard != card)
+            ConfirmSelection(card);
+        }
+
+        void ConfirmSelection(CardView chosen)
+        {
+            if (pickComplete || chosen == null)
+                return;
+
+            choiceModal.Hide();
+            inspectingCard = null;
+
+            if (inspectRoutine != null)
             {
-                choiceModal.Hide();
-                inspectingCard = null;
-                if (inspectRoutine != null)
-                {
-                    StopCoroutine(inspectRoutine);
-                    inspectRoutine = null;
-                }
+                StopCoroutine(inspectRoutine);
+                inspectRoutine = null;
             }
 
-            BeginInspect(card);
+            selectedIcon = chosen.FrontTexture;
+            pickComplete = true;
+            confirmRoutine = StartCoroutine(ConfirmPickRoutine(chosen));
         }
 
         public void DeclineInspect()

@@ -82,16 +82,28 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void Tick()
         {
-            if (!IsVisible || anchorCard == null)
+            if (root == null || !root.activeSelf)
                 return;
+
+            if (anchorCard == null || anchorCard.gameObject == null || !anchorCard.isActiveAndEnabled)
+            {
+                Hide();
+                return;
+            }
 
             UpdatePosition();
         }
 
         void UpdatePosition()
         {
-            if (worldCamera == null || panel == null || anchorCard == null)
+            if (worldCamera == null || panel == null || root == null)
                 return;
+
+            if (anchorCard == null || anchorCard.gameObject == null)
+            {
+                Hide();
+                return;
+            }
 
             var transform = anchorCard.transform;
             var centerScreen = worldCamera.WorldToScreenPoint(transform.position);

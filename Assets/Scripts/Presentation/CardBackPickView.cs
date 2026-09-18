@@ -14,15 +14,15 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] CardView cardPrefab;
 
         [Header("Layout")]
-        [SerializeField] Vector3 pickCenter = new(0f, PlaymatZones.CardY, 0f);
+        [SerializeField] Vector3 pickCenter = new(0f, 0.45f, 0f);
         [SerializeField] float pickSpacing = 6f;
-        [SerializeField] float pickCardScale = PlaymatZones.CardScale;
-        [SerializeField] float selectedScale = PlaymatZones.CardScale;
+        [SerializeField] float pickCardScale = 2.6f;
+        [SerializeField] float selectedScale = 2.6f;
         [SerializeField] float pickAnimDuration = 0.35f;
 
         [Header("Inspect")]
         [SerializeField] Vector3 inspectPosition = new(0f, 0.1f, -0.5f);
-        [SerializeField] float inspectScale = PlaymatZones.CardScale * 1.15f;
+        [SerializeField] float inspectScale = 2.99f;
         [SerializeField] float inspectPeerScaleMultiplier = 0.72f;
         [SerializeField] float inspectPeerZOffset = 0.75f;
         [SerializeField] float inspectAnimDuration = 0.25f;

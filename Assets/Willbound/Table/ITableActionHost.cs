@@ -1,6 +1,6 @@
-using Willbound.Engine;
+using global::Willbound.Engine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Engine C round-trip seam. Offline: TableMatchBridge. Online: WillboundNetworkClient (future).

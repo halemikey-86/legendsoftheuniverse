@@ -1,8 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation.EngineBridge;
+using LegendsOfTheUniverse.Presentation.Menu;
 using LegendsOfTheUniverse.Rules;
-using Willbound.Table;
+using LegendsOfTheUniverse.Willbound.Table;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -26,7 +27,6 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] StoreView storeView;
         [SerializeField] StoreActionController storeActions;
         [SerializeField] LegendaryPickView legendaryPickView;
-        [SerializeField] CardBackPickView cardBackPickView;
         [SerializeField] OpeningHandRedrawView openingHandRedrawView;
         [SerializeField] IconSlotView iconSlotView;
         [SerializeField] Transform deckPoint;
@@ -35,9 +35,12 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] TurnFlowController turnFlow;
         [SerializeField] TableMatchBridge matchBridge;
         [SerializeField] TableRoot tableRoot;
+        [SerializeField] StoreMarketMenuView storeMarketMenu;
 
         Text pickPromptText;
         Button keepButton;
+        Button shopButton;
+        Button layoutButton;
         Button listViewButton;
         Button buyButton;
         Button sellButton;
@@ -47,6 +50,8 @@ namespace LegendsOfTheUniverse.Presentation
         Image listViewButtonIcon;
         GameObject handUiRoot;
         bool matchStarted;
+        CardView pendingStoreCardClick;
+        CardView pendingGenericCardClick;
 
         Sprite keepIcon;
         Sprite buyIcon;
@@ -84,7 +89,6 @@ namespace LegendsOfTheUniverse.Presentation
             storeView = GetComponent<StoreView>();
             storeActions = GetComponent<StoreActionController>();
             legendaryPickView = GetComponent<LegendaryPickView>();
-            cardBackPickView = GetComponent<CardBackPickView>();
             iconSlotView = GetComponent<IconSlotView>();
         }
 
@@ -98,8 +102,6 @@ namespace LegendsOfTheUniverse.Presentation
                 storeActions = GetComponent<StoreActionController>();
             if (legendaryPickView == null)
                 legendaryPickView = GetComponent<LegendaryPickView>();
-            if (cardBackPickView == null)
-                cardBackPickView = GetComponent<CardBackPickView>();
             if (openingHandRedrawView == null)
                 openingHandRedrawView = GetComponent<OpeningHandRedrawView>();
             if (openingHandRedrawView == null)
@@ -128,13 +130,29 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (storeActions == null)
                 storeActions = gameObject.AddComponent<StoreActionController>();
+            if (GetComponent<TableDropZonesView>() == null)
+                gameObject.AddComponent<TableDropZonesView>();
+            if (GetComponent<CardDragDropController>() == null)
+                gameObject.AddComponent<CardDragDropController>();
+            if (GetComponent<CardSideReaderView>() == null)
+                gameObject.AddComponent<CardSideReaderView>();
+            if (GetComponent<BoardZoneArtView>() == null)
+                gameObject.AddComponent<BoardZoneArtView>();
+            if (GetComponent<TableLayoutApplier>() == null)
+                gameObject.AddComponent<TableLayoutApplier>();
+            if (GetComponent<TableLayoutTunerView>() == null)
+                gameObject.AddComponent<TableLayoutTunerView>();
+            if (storeMarketMenu == null)
+                storeMarketMenu = GetComponent<StoreMarketMenuView>();
+            if (storeMarketMenu == null)
+                storeMarketMenu = gameObject.AddComponent<StoreMarketMenuView>();
 
             turnFlow.Configure(handView, playmatZones, storeView, SetPickPrompt);
             turnFlow.BindEngine(matchBridge);
             turnFlow.PhaseStateChanged += OnTurnPhaseChanged;
             matchBridge.EngineError += OnEngineError;
 
-            storeActions.Init(handView, storeView, matchBridge);
+            storeActions.Init(handView, storeView, matchBridge, playmatZones, handUiRoot != null ? handUiRoot.transform : transform, GetTableCamera());
             handView?.BindStoreActions(storeActions);
             handView?.BindStoreView(storeView);
             storeView?.BindStoreActions(storeActions);
@@ -172,6 +190,8 @@ namespace LegendsOfTheUniverse.Presentation
                 Debug.LogError("HandFlowController: HandView.cardPrefab is not assigned on Table.");
 
             EnsureHandUi();
+            storeActions?.Init(handView, storeView, matchBridge, playmatZones, handUiRoot.transform, GetTableCamera());
+            storeMarketMenu?.Init(storeView, storeActions, handView, matchBridge, handUiRoot.transform);
             yield return BeginOpeningHand();
         }
 
@@ -196,23 +216,17 @@ namespace LegendsOfTheUniverse.Presentation
         void Update()
         {
             legendaryPickView?.TickModal();
-            cardBackPickView?.Tick();
+            storeActions?.TickModal();
 
-            if (tableRoot != null && tableRoot.IsMatchTableEnabled)
+            UpdateCardPointer();
+
+            if (!WasPrimaryClickThisFrame() || BlocksWorldCardInput())
                 return;
 
-            if (!WasPrimaryClickThisFrame() || IsPointerOverUi())
-                return;
-
-            if (TryRaycastCard(out var clickedCard))
+            if (CardSideReaderView.Instance != null && CardSideReaderView.Instance.IsVisible
+                && !TryRaycastCard(out _))
             {
-                if (TryHandleTableCardClick(clickedCard))
-                    return;
-            }
-
-            if (cardBackPickView != null && cardBackPickView.IsInspecting)
-            {
-                cardBackPickView.DeclineInspect();
+                CardSideReaderView.Instance.Hide();
                 return;
             }
 
@@ -239,6 +253,89 @@ namespace LegendsOfTheUniverse.Presentation
             DismissExpandedCards();
         }
 
+        void UpdateCardPointer()
+        {
+            if (BlocksWorldCardInput())
+                return;
+
+            if (WasPrimaryDownThisFrame() && TryRaycastCard(out var pressedCard))
+            {
+                if (TryHandlePickFlowClick(pressedCard))
+                    return;
+
+                pendingStoreCardClick = null;
+                pendingGenericCardClick = null;
+
+                if (handView != null && handView.ContainsHandCard(pressedCard)
+                    && (handView.CanClickCards || handView.IsOpeningReview))
+                {
+                    handView.HandleCardPointerDown(pressedCard);
+                    return;
+                }
+
+                if (storeView != null && storeView.CanInteractCards && storeView.ContainsStoreCard(pressedCard))
+                {
+                    pendingStoreCardClick = pressedCard;
+                    return;
+                }
+
+                if (iconSlotView != null && iconSlotView.IconCard == pressedCard)
+                {
+                    pendingGenericCardClick = pressedCard;
+                    return;
+                }
+
+                pendingGenericCardClick = pressedCard;
+                return;
+            }
+
+            if (IsPrimaryHeld() && handView != null && handView.TryGetPointerCard(out var draggedCard))
+                handView.HandleCardDrag(draggedCard);
+
+            if (!WasPrimaryUpThisFrame())
+                return;
+
+            if (handView != null && handView.TryGetPointerCard(out var handCard))
+            {
+                handView.HandleCardPointerUp(handCard);
+                return;
+            }
+
+            if (pendingStoreCardClick != null)
+            {
+                storeView?.HandleStoreCardClicked(pendingStoreCardClick);
+                pendingStoreCardClick = null;
+                return;
+            }
+
+            if (pendingGenericCardClick != null)
+            {
+                if (iconSlotView != null && iconSlotView.IconCard == pendingGenericCardClick)
+                    iconSlotView.HandleIconClicked(pendingGenericCardClick);
+                else
+                    CardSideReaderView.Instance?.Show(pendingGenericCardClick);
+
+                pendingGenericCardClick = null;
+            }
+        }
+
+        void CancelPendingCardClick()
+        {
+            pendingStoreCardClick = null;
+            pendingGenericCardClick = null;
+        }
+
+        bool TryHandlePickFlowClick(CardView card)
+        {
+            if (legendaryPickView != null && legendaryPickView.IsPickActive)
+            {
+                legendaryPickView.HandlePickCardClicked(card);
+                return true;
+            }
+
+            return false;
+        }
+
         void DismissExpandedCards()
         {
             if (handView != null && handView.HasInspectSelection)
@@ -250,36 +347,85 @@ namespace LegendsOfTheUniverse.Presentation
             storeView?.ClearInspectSelection();
         }
 
-        static bool WasPrimaryClickThisFrame()
+        static bool WasPrimaryClickThisFrame() => WasPrimaryDownThisFrame();
+
+        static bool WasPrimaryDownThisFrame() => TablePointerInput.WasPrimaryDownThisFrame();
+
+        static bool WasPrimaryUpThisFrame() => TablePointerInput.WasPrimaryUpThisFrame();
+
+        static bool IsPrimaryHeld() => TablePointerInput.IsPrimaryHeld();
+
+        bool BlocksWorldCardInput()
         {
-#if ENABLE_INPUT_SYSTEM
-            return Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
-#else
-            return Input.GetMouseButtonDown(0);
-#endif
+            var layoutTuner = GetComponent<TableLayoutTunerView>();
+            if (layoutTuner != null && layoutTuner.IsOpen)
+                return true;
+
+            if (legendaryPickView != null && legendaryPickView.IsPickActive)
+                return IsPointerOverInteractiveUi();
+
+            if (storeMarketMenu != null && storeMarketMenu.IsOpen)
+                return IsPointerOverInteractiveUi();
+
+            if (CardSideReaderView.Instance != null && CardSideReaderView.Instance.IsVisible)
+                return IsPointerOverInteractiveUi();
+
+            return IsPointerOverInteractiveUi();
         }
 
         static bool IsPointerOverUi()
         {
-            return EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null)
+                return false;
+
+#if ENABLE_INPUT_SYSTEM
+            if (Mouse.current != null && eventSystem.IsPointerOverGameObject(Mouse.current.deviceId))
+                return true;
+
+            var pointerData = new PointerEventData(eventSystem)
+            {
+                position = TablePointerInput.ScreenPosition,
+            };
+
+            var results = new List<RaycastResult>();
+            eventSystem.RaycastAll(pointerData, results);
+            return results.Count > 0;
+#else
+            return eventSystem.IsPointerOverGameObject();
+#endif
+        }
+
+        static bool IsPointerOverInteractiveUi()
+        {
+            var eventSystem = EventSystem.current;
+            if (eventSystem == null)
+                return false;
+
+            var pointerData = new PointerEventData(eventSystem)
+            {
+                position = TablePointerInput.ScreenPosition,
+            };
+
+            var results = new List<RaycastResult>();
+            eventSystem.RaycastAll(pointerData, results);
+            for (var i = 0; i < results.Count; i++)
+            {
+                if (results[i].gameObject.GetComponentInParent<Selectable>() != null)
+                    return true;
+            }
+
+            return false;
         }
 
         bool TryRaycastCard(out CardView card)
         {
             card = null;
-            var camera = Camera.main;
+            var camera = GetTableCamera();
             if (camera == null)
                 return false;
 
-#if ENABLE_INPUT_SYSTEM
-            var screenPosition = Mouse.current != null
-                ? Mouse.current.position.ReadValue()
-                : (Vector2)Input.mousePosition;
-#else
-            var screenPosition = Input.mousePosition;
-#endif
-
-            var ray = camera.ScreenPointToRay(screenPosition);
+            var ray = camera.ScreenPointToRay(TablePointerInput.ScreenPosition);
             if (!Physics.Raycast(ray, out var hit, 100f))
                 return false;
 
@@ -287,56 +433,12 @@ namespace LegendsOfTheUniverse.Presentation
             return card != null;
         }
 
-        bool TryHandleTableCardClick(CardView card)
-        {
-            if (card == null)
-                return false;
-
-            if (cardBackPickView != null && cardBackPickView.IsPickActive)
-            {
-                cardBackPickView.HandlePickCardClicked(card);
-                return true;
-            }
-
-            if (legendaryPickView != null && legendaryPickView.IsPickActive)
-            {
-                legendaryPickView.HandlePickCardClicked(card);
-                return true;
-            }
-
-            if (handView != null && handView.ContainsHandCard(card))
-            {
-                handView.HandleTableClick(card);
-                return true;
-            }
-
-            if (storeView != null && storeView.CanInteractCards)
-            {
-                storeView.HandleStoreCardClicked(card);
-                return true;
-            }
-
-            return false;
-        }
-
         IEnumerator BeginOpeningHand()
         {
             if (handView == null)
                 yield break;
 
-            SetPickPrompt("Choose your card back", true);
-
-            if (cardBackPickView != null)
-                yield return cardBackPickView.RunPickRoutine();
-
-            SetPickPrompt(null, false);
-
-            if (cardBackPickView != null && cardBackPickView.HasSelected)
-                CardDeck.SetSelectedCardBack(cardBackPickView.SelectedBack);
-            else
-                CardDeck.SetSelectedCardBack(CardCatalog.GetDefaultCardBack());
-
-            cardBackPickView?.ClearPickCards();
+            CardDeck.SetSelectedCardBack(GameSettings.GetSelectedCardBack());
 
             var deckPosition = GetDeckPosition();
             CardDeck.PrepareSetupPool();
@@ -441,7 +543,10 @@ namespace LegendsOfTheUniverse.Presentation
 
         void OnTurnPhaseChanged(TurnStep step, bool discardPending)
         {
-            SetStoreButtonsVisible(step == TurnStep.Main && !discardPending);
+            var shopVisible = storeView != null && storeView.CanOpenMarketMenu && !discardPending;
+            SetStoreButtonsVisible(shopVisible);
+            if (!shopVisible)
+                storeMarketMenu?.Close();
             UpdateTurnButtons();
         }
 
@@ -475,11 +580,23 @@ namespace LegendsOfTheUniverse.Presentation
                 image.color = interactable ? PhaseButtonEnabledTint : PhaseButtonDisabledTint;
         }
 
-        void OnRiverToggleClicked()
+        void OnShopClicked()
         {
-            var hideButton = listViewButton != null ? listViewButton.GetComponent<RectTransform>() : null;
-            storeView?.ToggleRiverCollapse(GetSupplyPosition(), hideButton);
-            UpdateRiverToggleButtonIcon();
+            if (storeMarketMenu == null)
+                return;
+
+            if (storeView != null && !storeView.CanOpenMarketMenu)
+            {
+                SetPickPrompt("Shop opens after you keep your hand and choose an icon.", true);
+                return;
+            }
+
+            storeMarketMenu.Toggle();
+        }
+
+        void OnLayoutClicked()
+        {
+            GetComponent<TableLayoutTunerView>()?.Toggle();
         }
 
         void OnBuyClicked() => SetStoreActionMode(StoreActionMode.Buy);
@@ -491,44 +608,22 @@ namespace LegendsOfTheUniverse.Presentation
         void SetStoreActionMode(StoreActionMode mode)
         {
             storeActions?.SetMode(mode);
-            UpdateActionButtonHighlights();
-        }
-
-        void UpdateRiverToggleButtonIcon()
-        {
-            if (listViewButtonIcon == null || hideDeckIcon == null)
-                return;
-
-            listViewButtonIcon.sprite = hideDeckIcon;
         }
 
         void SetStoreButtonsVisible(bool visible)
         {
-            if (listViewButton != null)
-            {
-                listViewButton.gameObject.SetActive(visible);
-                UpdateRiverToggleButtonIcon();
-            }
+            if (shopButton != null)
+                shopButton.gameObject.SetActive(visible);
 
             if (buyButton != null)
-                buyButton.gameObject.SetActive(visible);
+                buyButton.gameObject.SetActive(false);
             if (sellButton != null)
-                sellButton.gameObject.SetActive(visible);
+                sellButton.gameObject.SetActive(false);
             if (tradeButton != null)
-                tradeButton.gameObject.SetActive(visible);
+                tradeButton.gameObject.SetActive(false);
 
             if (!visible)
-                SetStoreActionMode(StoreActionMode.None);
-            else
-                UpdateActionButtonHighlights();
-        }
-
-        void UpdateActionButtonHighlights()
-        {
-            var mode = storeActions != null ? storeActions.CurrentMode : StoreActionMode.None;
-            SetButtonHighlighted(buyButton, BuyColor, mode == StoreActionMode.Buy);
-            SetButtonHighlighted(sellButton, SellColor, mode == StoreActionMode.Sell);
-            SetButtonHighlighted(tradeButton, TradeColor, mode == StoreActionMode.Trade);
+                storeActions?.SetMode(StoreActionMode.None);
         }
 
         static void SetButtonHighlighted(Button button, Color activeTint, bool active)
@@ -633,7 +728,7 @@ namespace LegendsOfTheUniverse.Presentation
                 handUiRoot = new GameObject("HandUI");
                 var canvas = handUiRoot.AddComponent<Canvas>();
                 canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                canvas.sortingOrder = 300;
+                canvas.sortingOrder = 600;
                 var scaler = handUiRoot.AddComponent<CanvasScaler>();
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 scaler.referenceResolution = new Vector2(1920, 1080);
@@ -644,18 +739,20 @@ namespace LegendsOfTheUniverse.Presentation
             EnsurePickPrompt();
             var tableCamera = GetTableCamera();
             legendaryPickView?.InitPickUi(handUiRoot.transform, tableCamera);
-            cardBackPickView?.InitPickUi(
-                handUiRoot.transform,
-                tableCamera,
-                legendaryPickView != null ? legendaryPickView.CardPrefab : null);
 
             EnsureKeepButton(false);
-            EnsureStoreActionButton(ref listViewButton, "RiverToggleButton", RiverToggleButtonPosition, RiverToggleButtonScale, hideDeckIcon, OnRiverToggleClicked, false);
-            listViewButtonIcon = listViewButton != null ? listViewButton.GetComponent<Image>() : null;
+            EnsureShopButton();
+            EnsureLayoutButton();
 
             EnsureStoreActionButton(ref buyButton, "BuyButton", BuyButtonPosition, BuyButtonScale, buyIcon, OnBuyClicked, false);
             EnsureStoreActionButton(ref sellButton, "SellButton", SellButtonPosition, SellButtonScale, sellIcon, OnSellClicked, false);
             EnsureStoreActionButton(ref tradeButton, "TradeButton", TradeButtonPosition, TradeButtonScale, tradeIcon, OnTradeClicked, false);
+            if (buyButton != null)
+                buyButton.gameObject.SetActive(false);
+            if (sellButton != null)
+                sellButton.gameObject.SetActive(false);
+            if (tradeButton != null)
+                tradeButton.gameObject.SetActive(false);
             EnsurePhaseButton(ref nextPhaseButton, "NextPhaseButton", NextPhaseButtonInset, nextPhaseIcon, OnNextPhaseClicked);
             EnsurePhaseButton(ref endTurnButton, "EndTurnButton", EndTurnButtonInset, endTurnIcon, OnEndTurnClicked);
             UpdateTurnButtons();
@@ -676,6 +773,7 @@ namespace LegendsOfTheUniverse.Presentation
             pickPromptText.fontStyle = FontStyle.Bold;
             pickPromptText.alignment = TextAnchor.MiddleCenter;
             pickPromptText.color = new Color(0.95f, 0.90f, 0.78f, 1f);
+            pickPromptText.raycastTarget = false;
 
             var rect = promptObject.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.88f);
@@ -762,6 +860,95 @@ namespace LegendsOfTheUniverse.Presentation
             buttonRect.anchoredPosition3D = Vector3.zero;
             buttonRect.localScale = Vector3.one * KeepButtonScale;
             buttonRect.sizeDelta = new Vector2(IconButtonSize, IconButtonSize);
+        }
+
+        void EnsureShopButton()
+        {
+            if (shopButton != null)
+                return;
+
+            var buttonObject = new GameObject("ShopButton");
+            buttonObject.transform.SetParent(handUiRoot.transform, false);
+
+            var image = buttonObject.AddComponent<Image>();
+            image.color = new Color(0.12f, 0.16f, 0.24f, 0.96f);
+            image.raycastTarget = true;
+
+            var buttonRect = buttonObject.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0f, 0f);
+            buttonRect.anchorMax = new Vector2(0f, 0f);
+            buttonRect.pivot = new Vector2(0f, 0f);
+            buttonRect.anchoredPosition = new Vector2(PhaseButtonBottomOffset, PhaseButtonBottomOffset);
+            buttonRect.sizeDelta = new Vector2(IconButtonSize, IconButtonSize);
+
+            var labelObject = new GameObject("Label");
+            labelObject.transform.SetParent(buttonObject.transform, false);
+            var label = labelObject.AddComponent<Text>();
+            label.text = buyIcon != null ? string.Empty : "Shop";
+            if (buyIcon != null)
+            {
+                image.sprite = buyIcon;
+                image.color = IconNormalTint;
+                image.preserveAspect = true;
+            }
+            label.font = GameFonts.Bold;
+            label.fontSize = 18;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = IconNormalTint;
+            label.raycastTarget = false;
+
+            var labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+
+            shopButton = buttonObject.AddComponent<Button>();
+            shopButton.targetGraphic = image;
+            shopButton.onClick.AddListener(OnShopClicked);
+            shopButton.gameObject.SetActive(false);
+        }
+
+        void EnsureLayoutButton()
+        {
+            if (layoutButton != null)
+                return;
+
+            var buttonObject = new GameObject("LayoutButton");
+            buttonObject.transform.SetParent(handUiRoot.transform, false);
+
+            var image = buttonObject.AddComponent<Image>();
+            image.color = new Color(0.18f, 0.22f, 0.32f, 0.96f);
+            image.raycastTarget = true;
+
+            var buttonRect = buttonObject.GetComponent<RectTransform>();
+            buttonRect.anchorMin = new Vector2(0f, 1f);
+            buttonRect.anchorMax = new Vector2(0f, 1f);
+            buttonRect.pivot = new Vector2(0f, 1f);
+            buttonRect.anchoredPosition = new Vector2(PhaseButtonBottomOffset, -PhaseButtonBottomOffset);
+            buttonRect.sizeDelta = new Vector2(IconButtonSize, IconButtonSize);
+
+            var labelObject = new GameObject("Label");
+            labelObject.transform.SetParent(buttonObject.transform, false);
+            var label = labelObject.AddComponent<Text>();
+            label.text = "Layout";
+            label.font = GameFonts.Bold;
+            label.fontSize = 16;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = IconNormalTint;
+            label.raycastTarget = false;
+
+            var labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+
+            layoutButton = buttonObject.AddComponent<Button>();
+            layoutButton.targetGraphic = image;
+            layoutButton.onClick.AddListener(OnLayoutClicked);
         }
 
         void EnsurePhaseButton(

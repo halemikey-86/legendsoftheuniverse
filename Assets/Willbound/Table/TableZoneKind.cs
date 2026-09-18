@@ -1,4 +1,4 @@
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>Physical drop targets on the WILLBOUND mat (Engine A).</summary>
     public enum TableZoneKind

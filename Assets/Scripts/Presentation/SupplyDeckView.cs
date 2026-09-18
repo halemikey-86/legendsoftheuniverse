@@ -1,35 +1,19 @@
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace LegendsOfTheUniverse.Presentation
 {
     /// <summary>
-    /// Face-down supply deck pile with a screen-space counter beneath it.
+    /// Supply count overlay — number only (label is on the official playmat art).
     /// </summary>
     [DisallowMultipleComponent]
     public class SupplyDeckView : MonoBehaviour
     {
-        [Header("Prefab")]
-        [SerializeField] CardView cardPrefab;
-
-        [Header("Stack")]
-        [SerializeField] float deckCardScale = PlaymatZones.CardScale;
-        [SerializeField] int maxVisibleLayers = 6;
-        [SerializeField] float layerHeightOffset = 0.004f;
-        [SerializeField] float layerDepthOffset = 0.045f;
-
         [Header("Counter")]
-        [SerializeField] Vector3 countWorldOffset = new(0f, 0f, -1.2f);
-        [SerializeField] Vector2 countScreenSize = new(88f, 40f);
-        [SerializeField] int countFontSize = 28;
+        [SerializeField] Vector3 countWorldOffset = new(2.8f, 0.22f, 0f);
+        [SerializeField] Vector2 countScreenSize = new(72f, 40f);
+        [SerializeField] int countFontSize = 30;
 
-        Transform stackRoot;
-        RectTransform counterRect;
-        Text countText;
-        Canvas counterCanvas;
-        readonly List<CardView> stackCards = new();
-        bool stackVisible = true;
+        WorldAnchoredUi counterUi;
 
         void OnEnable()
         {
@@ -38,13 +22,8 @@ namespace LegendsOfTheUniverse.Presentation
 
         void Start()
         {
-            EnsureScreenCounter();
+            EnsureCounter();
             Refresh();
-        }
-
-        void LateUpdate()
-        {
-            UpdateCounterPosition();
         }
 
         void OnDisable()
@@ -52,164 +31,49 @@ namespace LegendsOfTheUniverse.Presentation
             CardDeck.CountChanged -= OnDeckCountChanged;
         }
 
-        void OnDestroy()
-        {
-            if (counterCanvas != null)
-                Destroy(counterCanvas.gameObject);
-        }
-
         void OnDeckCountChanged(int count)
         {
             UpdateCountLabel(count);
-            RebuildStack(count);
         }
 
         public void SetStackVisible(bool visible)
         {
-            stackVisible = visible;
-            EnsureStackRoot();
-
-            if (stackRoot != null)
-                stackRoot.gameObject.SetActive(visible);
-
-            if (visible)
-                RebuildStack(CardDeck.Remaining);
-            else
-                ClearStackCards();
+            // Card stack hidden — official mat shows the supply zone art only.
         }
 
         public void Refresh()
         {
-            EnsureStackRoot();
-            EnsureScreenCounter();
-            var remaining = CardDeck.Remaining;
-            if (stackVisible)
-                RebuildStack(remaining);
-            else
-                ClearStackCards();
-
-            UpdateCountLabel(remaining);
-            UpdateCounterPosition();
+            EnsureCounter();
+            UpdateCountLabel(CardDeck.Remaining);
         }
 
-        void ClearStackCards()
+        public void ApplyLayoutSettings()
         {
-            for (var i = stackCards.Count - 1; i >= 0; i--)
-            {
-                if (stackCards[i] != null)
-                    Destroy(stackCards[i].gameObject);
-            }
-
-            stackCards.Clear();
+            countWorldOffset = PlaymatZones.SupplyNumberOffset;
+            counterUi?.SetWorldOffset(countWorldOffset);
         }
 
-        void EnsureStackRoot()
+        public Vector3 GetCountWorldOffset() =>
+            counterUi != null ? counterUi.WorldOffset : countWorldOffset;
+
+        void EnsureCounter()
         {
-            if (stackRoot != null)
+            if (counterUi != null)
                 return;
 
-            var rootObject = new GameObject("Stack");
-            rootObject.transform.SetParent(transform, false);
-            stackRoot = rootObject.transform;
-        }
-
-        void ApplyStackRootRotation()
-        {
-            EnsureStackRoot();
-            if (stackRoot != null)
-                stackRoot.localRotation = CardView.PileRootRotation;
-        }
-
-        void EnsureScreenCounter()
-        {
-            if (counterRect != null)
-                return;
-
-            var canvasObject = new GameObject("SupplyDeckCounter");
-            counterCanvas = canvasObject.AddComponent<Canvas>();
-            counterCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            counterCanvas.sortingOrder = 450;
-
-            var scaler = canvasObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-
-            var panelObject = new GameObject("Panel");
-            panelObject.transform.SetParent(canvasObject.transform, false);
-            counterRect = panelObject.AddComponent<RectTransform>();
-            counterRect.sizeDelta = countScreenSize;
-            counterRect.pivot = new Vector2(0.5f, 0.5f);
-
-            var background = panelObject.AddComponent<Image>();
-            background.color = new Color(0.05f, 0.08f, 0.14f, 0.92f);
-            background.raycastTarget = false;
-
-            var textObject = new GameObject("Count");
-            textObject.transform.SetParent(panelObject.transform, false);
-            countText = textObject.AddComponent<Text>();
-            countText.font = GameFonts.Bold;
-            countText.fontSize = countFontSize;
-            countText.fontStyle = FontStyle.Bold;
-            countText.alignment = TextAnchor.MiddleCenter;
-            countText.color = new Color(0.98f, 0.94f, 0.82f, 1f);
-            countText.raycastTarget = false;
-            countText.horizontalOverflow = HorizontalWrapMode.Overflow;
-
-            var textRect = textObject.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
-        }
-
-        void UpdateCounterPosition()
-        {
-            if (counterRect == null)
-                return;
-
-            var camera = Camera.main;
-            if (camera == null)
-            {
-                counterRect.gameObject.SetActive(false);
-                return;
-            }
-
-            counterRect.gameObject.SetActive(true);
-            var worldPosition = transform.position + countWorldOffset;
-            var screenPosition = camera.WorldToScreenPoint(worldPosition);
-            counterRect.position = screenPosition;
-        }
-
-        void RebuildStack(int remaining)
-        {
-            if (!stackVisible)
-                return;
-
-            ApplyStackRootRotation();
-            ClearStackCards();
-
-            if (cardPrefab == null || remaining <= 0)
-                return;
-
-            var layers = Mathf.Min(remaining, maxVisibleLayers);
-            for (var i = 0; i < layers; i++)
-            {
-                var card = Instantiate(cardPrefab, stackRoot);
-                card.transform.localPosition = new Vector3(0f, i * layerHeightOffset, i * layerDepthOffset);
-                card.SetFaceUpImmediate(false);
-                card.SetCardScale(deckCardScale);
-                card.SetClickable(false);
-                card.ApplyStackOrientation();
-                stackCards.Add(card);
-            }
+            counterUi = WorldAnchoredUi.CreateValueOnly(
+                transform,
+                countWorldOffset,
+                countScreenSize,
+                countFontSize);
         }
 
         void UpdateCountLabel(int remaining)
         {
-            if (countText == null)
+            if (counterUi == null)
                 return;
 
-            countText.text = remaining.ToString();
+            counterUi.Value = remaining.ToString();
         }
     }
 }

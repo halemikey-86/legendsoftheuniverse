@@ -28,12 +28,12 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] ZoneKind zoneKind = ZoneKind.Slots;
         [SerializeField] ZoneLayout layout = ZoneLayout.Vertical;
         [SerializeField] int slotCount = 1;
-        [SerializeField] float slotSpacing = PlaymatZones.FieldSlotSpacing;
+        [SerializeField] float slotSpacing = 5.88f;
         [SerializeField] Vector2 markerSize = new(0.65f, 0.9f);
 
         [Header("Cards")]
         [SerializeField] CardView cardPrefab;
-        [SerializeField] float cardScale = PlaymatZones.PileCardScale;
+        [SerializeField] float cardScale = 2.6f;
         [SerializeField] int maxVisiblePileLayers = 5;
         [SerializeField] float pileLayerHeight = 0.004f;
         [SerializeField] float pileLayerDepth = 0.04f;
@@ -84,6 +84,11 @@ namespace LegendsOfTheUniverse.Presentation
         public void SetCardPrefab(CardView prefab)
         {
             cardPrefab = prefab;
+        }
+
+        public void SetPileCardScale(float scale)
+        {
+            cardScale = scale;
         }
 
         public void SetPileStackRotation(Quaternion rotation)
@@ -256,6 +261,32 @@ namespace LegendsOfTheUniverse.Presentation
         {
             pileCount += amount;
             RebuildPileVisual();
+            UpdateLabelValue();
+        }
+
+        public void AddCardToPile(CardView card)
+        {
+            if (card == null || zoneKind != ZoneKind.Pile)
+                return;
+
+            EnsureRoots();
+            card.transform.SetParent(cardsRoot, true);
+            card.SetClickable(false);
+            card.SetFaceUpImmediate(true);
+
+            pileCount++;
+            var layerIndex = Mathf.Min(pileCount - 1, maxVisiblePileLayers - 1);
+            card.transform.localPosition = new Vector3(0f, layerIndex * pileLayerHeight, layerIndex * pileLayerDepth);
+            card.transform.localRotation = CardView.TableRotation;
+            ApplyPileCardOrientation(card);
+
+            if (pileCards.Count > layerIndex && pileCards[layerIndex] != null && pileCards[layerIndex] != card)
+                Destroy(pileCards[layerIndex].gameObject);
+
+            while (pileCards.Count <= layerIndex)
+                pileCards.Add(null);
+
+            pileCards[layerIndex] = card;
             UpdateLabelValue();
         }
 

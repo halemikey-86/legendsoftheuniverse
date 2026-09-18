@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 #endif
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>Carved Pass stone — visible Pass when you have priority. Space also Passes.</summary>
     [DisallowMultipleComponent]

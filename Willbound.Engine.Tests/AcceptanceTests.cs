@@ -150,10 +150,10 @@ namespace Willbound.Engine.Tests
             runner.AdvanceToMain();
             var player = runner.Match.GetPlayer(0);
             var before = player.Worth;
-            runner.Apply(new PlayerAction { Kind = PlayerActionKind.StoreBuy, PlayerId = 0, StoreSlotIndex = 0, PaidWorth = 1, StoreKind = StoreActionKind.Buy });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.StoreBuy, PlayerId = 0, StoreSlotIndex = 0, StoreKind = StoreActionKind.Buy });
             var storeObj = runner.Match.Stack.Last();
-            storeObj.PaidWorth = 2;
-            player.Worth = before - 2;
+            Assert.That(storeObj.PaidWorth, Is.GreaterThan(0));
+            Assert.That(player.Worth, Is.EqualTo(before - storeObj.PaidWorth));
             runner.Apply(new PlayerAction { Kind = PlayerActionKind.Silence, PlayerId = 1, StackObjectId = storeObj.StackId });
             Assert.That(player.Worth, Is.EqualTo(before));
         }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -15,11 +16,14 @@ namespace LegendsOfTheUniverse.Presentation
 
         public CardView CardPrefab => cardPrefab;
 
+        [Header("Market Menu")]
+        [SerializeField] bool useMarketMenuOnly = true;
+
         [Header("Horizontal Row")]
         [SerializeField] int storeSlotCount = PlaymatZones.StoreSlotCount;
-        [SerializeField] Vector3 rowCenter = PlaymatZones.StoreRowCenter;
-        [SerializeField] float rowSpacing = PlaymatZones.StoreSpacing;
-        [SerializeField] float storeCardScale = PlaymatZones.StoreCardScale;
+        [SerializeField] Vector3 rowCenter = new(0f, -8f, 0f);
+        [SerializeField] float rowSpacing = 2.55f;
+        [SerializeField] float storeCardScale = 2.6f;
         [SerializeField] float cardLift = 0.03f;
 
         [Header("River Fold")]
@@ -44,7 +48,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float hoverAnimDuration = 0.12f;
 
         [Header("Inspect")]
-        [SerializeField] float inspectScale = PlaymatZones.CardScale;
+        [SerializeField] float inspectScale = 2.6f;
         [SerializeField] Vector3 inspectPosition = new(0f, 0.1f, 0.5f);
         [SerializeField] float inspectAnimDuration = 0.25f;
         [SerializeField] float inspectPeerScaleMultiplier = 0.72f;
@@ -68,22 +72,50 @@ namespace LegendsOfTheUniverse.Presentation
         void SyncTableHeights()
         {
             rowCenter.y = PlaymatZones.CardY;
-            listAnchor.y = PlaymatZones.CardY;
         }
+
+        public bool UseMarketMenuOnly => useMarketMenuOnly;
+
+        /// <summary>Shop menu can open once the round store is stocked (browse anytime after setup).</summary>
+        public bool CanOpenMarketMenu =>
+            RoundStarted
+            && !IsDealing
+            && handView != null
+            && handView.HandKept;
 
         public bool CanInteractCards =>
             turnStoreEnabled
-            && RoundStarted
-            && !IsDealing
-            && !isRiverCollapsed
-            && handView != null
-            && handView.HandKept;
+            && CanOpenMarketMenu
+            && (!isRiverCollapsed || useMarketMenuOnly);
+
+        public event Action StoreInventoryChanged;
 
         public void SetTurnStoreEnabled(bool enabled)
         {
             turnStoreEnabled = enabled;
         }
         public bool HasInspectSelection => selectedCard != null;
+        public IReadOnlyList<CardView> StoreCards => storeCards;
+        public int StoreSlotCount => storeSlotCount;
+        public bool ContainsStoreCard(CardView card) => card != null && storeCards.Contains(card);
+
+        public CardView GetStoreCardAt(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= storeCards.Count)
+                return null;
+
+            return storeCards[slotIndex];
+        }
+
+        public int GetStoreSlotIndex(CardView card)
+        {
+            if (card == null)
+                return -1;
+
+            return storeCards.IndexOf(card);
+        }
+
+        void NotifyInventoryChanged() => StoreInventoryChanged?.Invoke();
 
         public void ClearStoreRuntime()
         {
@@ -141,13 +173,16 @@ namespace LegendsOfTheUniverse.Presentation
             if (!CanInteractCards || !storeCards.Contains(card))
                 return;
 
-            if (storeActions != null && storeActions.CurrentMode != StoreActionMode.None)
+            if (storeActions != null && storeActions.CurrentMode == StoreActionMode.Trade && storeActions.TryCompleteStoreTrade(card))
+                return;
+
+            if (storeActions != null)
             {
-                storeActions.HandleStoreCardAction(card);
+                storeActions.OpenStoreCardReader(card);
                 return;
             }
 
-            HandleInspectCard(card);
+            CardSideReaderView.Instance?.Show(card);
         }
 
         public void HandleInspectCard(CardView card)
@@ -290,15 +325,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (camera == null || card == null)
                 return false;
 
-#if ENABLE_INPUT_SYSTEM
-            var screenPosition = UnityEngine.InputSystem.Mouse.current != null
-                ? UnityEngine.InputSystem.Mouse.current.position.ReadValue()
-                : (Vector2)Input.mousePosition;
-#else
-            var screenPosition = (Vector2)Input.mousePosition;
-#endif
-
-            var ray = camera.ScreenPointToRay(screenPosition);
+            var ray = camera.ScreenPointToRay(TablePointerInput.ScreenPosition);
             if (!Physics.Raycast(ray, out var hit, 100f))
                 return false;
 
@@ -370,6 +397,12 @@ namespace LegendsOfTheUniverse.Presentation
 
         public IEnumerator BeginRoundRoutine(Vector3 deckPosition)
         {
+            if (useMarketMenuOnly)
+            {
+                yield return BeginRoundHiddenRoutine();
+                yield break;
+            }
+
             isRiverCollapsed = false;
             IsDealing = true;
 
@@ -427,6 +460,54 @@ namespace LegendsOfTheUniverse.Presentation
             RoundStarted = true;
             EnableStoreClicks();
             IsDealing = false;
+            NotifyInventoryChanged();
+        }
+
+        IEnumerator BeginRoundHiddenRoutine()
+        {
+            isRiverCollapsed = true;
+            IsDealing = true;
+
+            if (cardPrefab == null)
+            {
+                IsDealing = false;
+                yield break;
+            }
+
+            EnsureStoreSlotList();
+
+            for (var i = 0; i < storeSlotCount; i++)
+            {
+                if (storeCards[i] != null)
+                    continue;
+
+                var fronts = CardDeck.Draw(1);
+                if (fronts.Count == 0)
+                    break;
+
+                var slotPosition = GetSlotPosition(i);
+                var card = SpawnStoreCard(fronts[0], slotPosition, slotPosition);
+                storeCards[i] = card;
+                card.SetFaceUpImmediate(true);
+                card.gameObject.SetActive(false);
+                EnableCardClick(card);
+            }
+
+            RoundStarted = true;
+            IsDealing = false;
+            NotifyInventoryChanged();
+            yield return null;
+        }
+
+        public void HideTableCards()
+        {
+            for (var i = 0; i < storeCards.Count; i++)
+            {
+                if (storeCards[i] != null)
+                    storeCards[i].gameObject.SetActive(false);
+            }
+
+            isRiverCollapsed = true;
         }
 
         public IEnumerator DealStoreRoutine(Vector3 deckPosition)
@@ -570,6 +651,11 @@ namespace LegendsOfTheUniverse.Presentation
             }
 
             EnableCardClick(card);
+
+            if (useMarketMenuOnly && card != null)
+                card.gameObject.SetActive(false);
+
+            NotifyInventoryChanged();
         }
 
         public void ToggleRiverCollapse(Vector3 deckPosition, RectTransform hideButton = null)

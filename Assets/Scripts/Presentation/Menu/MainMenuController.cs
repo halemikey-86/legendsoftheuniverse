@@ -180,16 +180,18 @@ namespace LegendsOfTheUniverse.Presentation.Menu
                 UpdateMusicVolume();
             });
 
-            MenuUiBuilder.CreateLabel(screen.transform, "Display", new Vector2(0.18f, 0.34f), new Vector2(200f, 32f));
+            BuildCardBackRow(screen.transform);
+
+            MenuUiBuilder.CreateLabel(screen.transform, "Display", new Vector2(0.18f, 0.28f), new Vector2(200f, 32f));
             var displayOptions = new[] { "Windowed", "Fullscreen" };
-            MenuUiBuilder.CreateDropdown(screen.transform, new Vector2(0.62f, 0.34f), displayOptions, GameSettings.Fullscreen ? 1 : 0, index =>
+            MenuUiBuilder.CreateDropdown(screen.transform, new Vector2(0.62f, 0.28f), displayOptions, GameSettings.Fullscreen ? 1 : 0, index =>
             {
                 GameSettings.Fullscreen = index == 1;
                 GameSettings.ApplyAll();
             });
 
-            MenuUiBuilder.CreateLabel(screen.transform, "Graphics Quality", new Vector2(0.18f, 0.24f), new Vector2(240f, 32f));
-            MenuUiBuilder.CreateDropdown(screen.transform, new Vector2(0.62f, 0.24f), QualitySettings.names, GameSettings.QualityLevel, index =>
+            MenuUiBuilder.CreateLabel(screen.transform, "Graphics Quality", new Vector2(0.18f, 0.18f), new Vector2(240f, 32f));
+            MenuUiBuilder.CreateDropdown(screen.transform, new Vector2(0.62f, 0.18f), QualitySettings.names, GameSettings.QualityLevel, index =>
             {
                 GameSettings.QualityLevel = index;
                 GameSettings.ApplyAll();
@@ -206,6 +208,29 @@ namespace LegendsOfTheUniverse.Presentation.Menu
             slider.minValue = 0f;
             slider.maxValue = 1f;
             slider.value = value;
+        }
+
+        static void BuildCardBackRow(Transform parent)
+        {
+            var backs = CardCatalog.LoadCardBacks();
+            if (backs.Count == 0)
+                return;
+
+            var labels = new string[backs.Count];
+            var selectedIndex = 0;
+            for (var i = 0; i < backs.Count; i++)
+            {
+                labels[i] = CardCatalog.FormatCardBackName(backs[i].name);
+                if (!string.IsNullOrEmpty(GameSettings.CardBackName) && backs[i].name == GameSettings.CardBackName)
+                    selectedIndex = i;
+            }
+
+            MenuUiBuilder.CreateLabel(parent, "Card Back", new Vector2(0.18f, 0.34f), new Vector2(200f, 32f));
+            MenuUiBuilder.CreateDropdown(parent, new Vector2(0.62f, 0.34f), labels, selectedIndex, index =>
+            {
+                if (index >= 0 && index < backs.Count)
+                    GameSettings.SetSelectedCardBack(backs[index]);
+            });
         }
 
         void ShowMainScreen()

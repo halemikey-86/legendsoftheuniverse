@@ -2,7 +2,7 @@ using System.Collections;
 using LegendsOfTheUniverse.Presentation;
 using UnityEngine;
 
-namespace Willbound.Table
+namespace LegendsOfTheUniverse.Willbound.Table
 {
     /// <summary>
     /// Engine A card body — binds engine instanceId to the presentation CardView shell.

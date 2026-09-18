@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj": {}
+    "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj": {}
   },
   "projects": {
-    "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj": {
+    "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
+        "projectUniqueName": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
         "projectName": "Willbound.Engine",
-        "projectPath": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
+        "projectPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
         "packagesPath": "C:\\Users\\Chemeleon\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\obj\\",
+        "outputPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
