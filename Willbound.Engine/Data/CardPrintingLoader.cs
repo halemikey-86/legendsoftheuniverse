@@ -55,6 +55,8 @@ namespace Willbound.Engine
                 StartsInPlay = GetBool(el, "startsInPlay"),
             };
 
+            printing.IsLegendary = GetBool(el, "legendary") || IsLegendaryByArtConvention(el, printing.Type);
+
             if (el.TryGetProperty("keywords", out var keywords))
             {
                 foreach (var kw in keywords.EnumerateArray())
@@ -136,8 +138,22 @@ namespace Willbound.Engine
                 case "willsite":
                 case "will": return CardType.WillSite;
                 case "token": return CardType.Token;
+                // Remnant is a frame/assembly tag on a Relic, Bond, or Icon (design doc glossary 3.1),
+                // not its own type — cards printed with type "Remnant" are Relics underneath.
+                case "remnant":
+                case "universe": return CardType.Relic;
                 default: return CardType.Companion;
             }
+        }
+
+        static bool IsLegendaryByArtConvention(JsonElement el, CardType type)
+        {
+            if (type != CardType.Icon)
+                return false;
+            var artFile = GetString(el, "artFile");
+            var proofFile = GetString(el, "proofFile");
+            return (artFile != null && artFile.StartsWith("Legendary Icon", StringComparison.OrdinalIgnoreCase))
+                || (proofFile != null && proofFile.StartsWith("Legendary Icon", StringComparison.OrdinalIgnoreCase));
         }
 
         static Timing ParseTiming(string value)

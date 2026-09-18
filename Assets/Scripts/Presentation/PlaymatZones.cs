@@ -30,7 +30,10 @@ namespace LegendsOfTheUniverse.Presentation
         public static readonly Vector3 Supply = new(-12.5f, CardY, 8.5f);
         public static readonly Vector3 StoreRowCenter = new(0.5f, CardY, 8.5f);
         public const int StoreSlotCount = 7;
-        public const float StoreSpacing = 2.55f;
+
+        /// <summary>Center-to-center spacing for the 7-card store row. Must exceed <see cref="StoreCardScale"/>
+        /// (the card's world width) or adjacent store cards overlap.</summary>
+        public static readonly float StoreSpacing = CardLayout.SpreadSpacing(StoreCardScale);
 
         // Player deck (draw pile) and piles
         public static readonly Vector3 Deck = new(18.1f, CardY, -7.23f);

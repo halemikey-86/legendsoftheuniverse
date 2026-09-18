@@ -16,18 +16,18 @@ namespace Willbound.Table
         {
             if (ui == null)
             {
-                ui = WorldAnchoredUi.CreateLabeled(
+                // Just the "current/max" number, centered below the Icon card (not overlapping its
+                // art). +Z is up-screen under the table's top-down camera, so a negative Z offset
+                // past the card's own half-depth (~1.9 for CardScale 3.8) clears it downward.
+                ui = WorldAnchoredUi.CreateValueOnly(
                     anchor,
-                    title,
-                    "Health",
-                    new Vector3(2.4f, 0.55f, 0f),
-                    new Vector2(200f, 108f),
-                    32);
+                    new Vector3(0f, 0.55f, -3.2f),
+                    new Vector2(160f, 56f),
+                    26);
             }
             else
             {
                 ui.WorldAnchor = anchor;
-                ui.Label = title;
             }
 
             Refresh();
@@ -58,12 +58,6 @@ namespace Willbound.Table
                 return;
 
             ui.Value = $"{current}/{max}";
-            if (clashTaken > 0)
-                ui.Subtitle = $"This Clash −{clashTaken}";
-            else if (current < max)
-                ui.Subtitle = $"Damaged (−{max - current})";
-            else
-                ui.Subtitle = "Health";
         }
 
         void OnDestroy()

@@ -26,9 +26,20 @@ namespace Willbound.Engine
         ClashQueue,
     }
 
+    /// <summary>
+    /// Setup, LegendaryDraft and Mulligan run once, before Round 1's Start step, then every
+    /// round repeats Start -> Site -> Main -> Clash -> End for the active seat.
+    ///
+    /// External round terminology maps onto these steps as:
+    ///   Phase 1 (play/shop before combat) = Site + Main
+    ///   Phase 2 (stack/priority resolution) = the priority window inherent in every step (4.5-4.7) — not a separate step
+    ///   Phase 3 (combat + end) = Clash (C0-C8) + End
+    /// </summary>
     public enum Phase
     {
         Setup,
+        LegendaryDraft,
+        Mulligan,
         Start,
         Site,
         Main,
@@ -169,6 +180,11 @@ namespace Willbound.Engine
         StoreList,
         StoreRow,
         Silence,
+        PickLegendaryIcon,
+        CycleLegendaryIcon,
+        KeepHand,
+        CycleHandCard,
+        Mulligan,
     }
 
     public enum LossReason
@@ -212,5 +228,11 @@ namespace Willbound.Engine
         PlayerLost,
         PlayerWon,
         CheckRan,
+        LegendaryIconOffered,
+        LegendaryIconPicked,
+        HandKept,
+        HandCycled,
+        HandMulliganed,
+        TurnOrderRandomized,
     }
 }

@@ -118,20 +118,22 @@ namespace LegendsOfTheUniverse.Presentation
         }
 
         /// <summary>Title on top, large number in the middle, caption underneath. Sized so the value
-        /// cannot be clipped by a 24pt font in a 26px strip.</summary>
+        /// cannot be clipped by a 24pt font in a 26px strip. Pass <paramref name="titleSprite"/> to render
+        /// the title as image art (e.g. the "Will"/"Worth"/"Honor"/"Round" label PNGs) instead of text.</summary>
         public static WorldAnchoredUi CreateHudCounter(
             string title,
             string subtitle,
             Vector2 screenAnchor,
             Vector2 screenOffset,
-            Vector2 size)
+            Vector2 size,
+            Sprite titleSprite = null)
         {
-            var ui = CreateInternal(null, title, null, Vector3.zero, size, 15, withValue: true, showTitle: true);
+            var ui = CreateInternal(null, title, titleSprite, Vector3.zero, size, 15, withValue: true, showTitle: true);
             ui.useScreenAnchor = true;
             ui.screenAnchor01 = screenAnchor;
             ui.screenOffsetPixels = screenOffset;
             ui.BuildSubtitle(subtitle);
-            ui.ApplyHudValueLayout(36);
+            ui.ApplyHudValueLayout(28);
             ui.ApplyScreenAnchorPosition();
             return ui;
         }
@@ -217,8 +219,24 @@ namespace LegendsOfTheUniverse.Presentation
                 labelRect.anchorMax = new Vector2(0.96f, 0.98f);
                 labelRect.offsetMin = Vector2.zero;
                 labelRect.offsetMax = Vector2.zero;
-                labelText.fontSize = 16;
+                labelText.fontSize = 13;
                 labelText.alignment = TextAnchor.MiddleCenter;
+                labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
+                labelText.verticalOverflow = VerticalWrapMode.Overflow;
+                labelText.resizeTextForBestFit = true;
+                labelText.resizeTextMinSize = 8;
+                labelText.resizeTextMaxSize = 13;
+            }
+
+            if (labelImage != null)
+            {
+                // Match the text title's strip exactly so image-based titles (e.g. the Will/Worth/Honor/
+                // Round label art) never overlap the value number below them.
+                var labelRect = labelImage.rectTransform;
+                labelRect.anchorMin = new Vector2(0.08f, 0.72f);
+                labelRect.anchorMax = new Vector2(0.92f, 0.98f);
+                labelRect.offsetMin = Vector2.zero;
+                labelRect.offsetMax = Vector2.zero;
             }
 
             if (valueText != null)
@@ -233,8 +251,8 @@ namespace LegendsOfTheUniverse.Presentation
                 valueText.horizontalOverflow = HorizontalWrapMode.Overflow;
                 valueText.verticalOverflow = VerticalWrapMode.Overflow;
                 valueText.resizeTextForBestFit = true;
-                valueText.resizeTextMinSize = 18;
-                valueText.resizeTextMaxSize = Mathf.Max(valueFontSize, 22);
+                valueText.resizeTextMinSize = 14;
+                valueText.resizeTextMaxSize = Mathf.Max(valueFontSize, 18);
 
                 var outline = valueText.GetComponent<Outline>();
                 if (outline == null)
@@ -306,6 +324,11 @@ namespace LegendsOfTheUniverse.Presentation
             labelText.color = new Color(0.92f, 0.84f, 0.58f, 1f);
             labelText.raycastTarget = false;
             labelText.text = label;
+            labelText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            labelText.verticalOverflow = VerticalWrapMode.Overflow;
+            labelText.resizeTextForBestFit = true;
+            labelText.resizeTextMinSize = 8;
+            labelText.resizeTextMaxSize = fontSize;
 
             var labelRect = labelText.rectTransform;
             labelRect.anchorMin = new Vector2(0f, 0.52f);

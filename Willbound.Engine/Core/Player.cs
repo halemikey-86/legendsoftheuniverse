@@ -24,6 +24,16 @@ namespace Willbound.Engine
         /// <summary>Instance ids bought from the Store this turn — cannot be Sold back until next turn.</summary>
         public HashSet<int> BoughtThisTurn = new HashSet<int>();
 
+        // Pregame flow (Phase.LegendaryDraft / Phase.Mulligan)
+        public bool LegendaryDraftDone;
+        public bool LegendaryCycleUsed;
+        public List<CardInstance> LegendaryChoices = new List<CardInstance>();
+        public bool MulliganStepDone;
+
+        /// <summary>Set when cycling the Legendary Icon draft paid with the player's first round of Will.
+        /// Consumed once by the first Start step's automatic Will grant.</summary>
+        public bool SkipFirstWill;
+
         public bool IsAlive => !Lost && Icon != null && Icon.CurrentHealth > 0;
     }
 }

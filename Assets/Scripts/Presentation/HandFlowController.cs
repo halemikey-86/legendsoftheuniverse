@@ -792,9 +792,13 @@ namespace LegendsOfTheUniverse.Presentation
             pickPromptText.alignment = TextAnchor.MiddleCenter;
             pickPromptText.color = new Color(0.95f, 0.90f, 0.78f, 1f);
 
+            // Below the player's hand (and below the Keep/Mulligan buttons at KeepButtonAnchorY =
+            // 0.12), not the old top-of-screen band — this text also carries the live Round/phase
+            // status during normal play (see TurnFlowController.BuildPrompt), not just the opening
+            // hand prompt.
             var rect = promptObject.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.88f);
-            rect.anchorMax = new Vector2(0.5f, 0.88f);
+            rect.anchorMin = new Vector2(0.5f, 0.045f);
+            rect.anchorMax = new Vector2(0.5f, 0.045f);
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(640f, 48f);
             rect.anchoredPosition = Vector2.zero;

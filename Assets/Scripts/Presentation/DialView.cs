@@ -19,7 +19,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] DialKind dialKind = DialKind.Worth;
         [SerializeField] Vector2 screenAnchor = new(1f, 1f);
         [SerializeField] Vector2 screenOffset = Vector2.zero;
-        [SerializeField] Vector2 panelSize = new(156f, 108f);
+        [SerializeField] Vector2 panelSize = new(132f, 90f);
 
         WorldAnchoredUi labelUi;
         int currentValue = 3;
@@ -54,7 +54,8 @@ namespace LegendsOfTheUniverse.Presentation
                 GetDialSubtitle(dialKind),
                 screenAnchor,
                 screenOffset,
-                panelSize);
+                panelSize,
+                PlaymatUiSprites.GetDialLabel(dialKind));
         }
 
         static string GetDialTitle(DialKind kind)

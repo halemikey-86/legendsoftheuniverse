@@ -548,5 +548,144 @@ namespace Willbound.Engine.Tests
             Assert.That(card.WillCost, Is.EqualTo(2));
             Assert.That(card.StoreWorth, Is.EqualTo(2));
         }
+
+        [Test]
+        public void Loader_RemnantParsesAsRelic()
+        {
+            var card = BootstrapCards.RemnantRelic();
+            Assert.That(card.Type, Is.EqualTo(CardType.Relic));
+        }
+
+        [Test]
+        public void PregameFlow_DisabledByDefaultSkipsStraightToStart()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            Assert.That(runner.Match.Phase, Is.EqualTo(Phase.Site));
+            Assert.That(runner.Match.GetPlayer(1).Hand.Count, Is.EqualTo(MatchConstants.OpeningHandSize));
+            Assert.That(runner.Match.GetPlayer(0).Hand.Count, Is.EqualTo(MatchConstants.OpeningHandSize + 1),
+                "Active player also draws 1 from the automatic Start step.");
+        }
+
+        [Test]
+        public void LegendaryDraft_PickAssignsIconAndReturnsRestToSupply()
+        {
+            var printings = new List<CardPrinting>(BootstrapCards.All);
+            var runner = MatchRunner.FromSetup(printings, new[]
+            {
+                new SetupPlayer { PlayerId = 0, DraftLegendaryIcon = true, DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+                new SetupPlayer { PlayerId = 1, DraftLegendaryIcon = true, DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+            }, enablePregameFlow: true);
+
+            Assert.That(runner.Match.Phase, Is.EqualTo(Phase.LegendaryDraft));
+            var player0 = runner.Match.GetPlayer(0);
+            Assert.That(player0.LegendaryChoices.Count, Is.EqualTo(3));
+            Assert.That(player0.Icon, Is.Null);
+
+            var chosen = player0.LegendaryChoices[0];
+            var declinedIds = player0.LegendaryChoices.Skip(1).Select(c => c.InstanceId).ToList();
+            var result = runner.Apply(new PlayerAction { Kind = PlayerActionKind.PickLegendaryIcon, PlayerId = 0, CardInstanceId = chosen.InstanceId });
+            Assert.That(result.Success, Is.True, result.Error);
+            Assert.That(player0.Icon?.InstanceId, Is.EqualTo(chosen.InstanceId));
+            Assert.That(player0.Field.Contains(chosen), Is.True);
+            foreach (var id in declinedIds)
+                Assert.That(runner.Match.Supply.Exists(c => c.InstanceId == id), Is.True);
+
+            Assert.That(runner.Match.Phase, Is.EqualTo(Phase.LegendaryDraft), "Player 1 has not drafted yet.");
+
+            var player1 = runner.Match.GetPlayer(1);
+            var chosen1 = player1.LegendaryChoices[0];
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.PickLegendaryIcon, PlayerId = 1, CardInstanceId = chosen1.InstanceId });
+
+            Assert.That(runner.Match.Phase, Is.EqualTo(Phase.Mulligan));
+        }
+
+        [Test]
+        public void LegendaryDraft_CycleIsOnceOnlyAndZeroesFirstRoundWill()
+        {
+            var printings = new List<CardPrinting>(BootstrapCards.All);
+            var runner = MatchRunner.FromSetup(printings, new[]
+            {
+                new SetupPlayer { PlayerId = 0, DraftLegendaryIcon = true, DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+                new SetupPlayer { PlayerId = 1, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+            }, enablePregameFlow: true);
+
+            var player0 = runner.Match.GetPlayer(0);
+
+            var cycle = runner.Apply(new PlayerAction { Kind = PlayerActionKind.CycleLegendaryIcon, PlayerId = 0 });
+            Assert.That(cycle.Success, Is.True, cycle.Error);
+            Assert.That(player0.LegendaryCycleUsed, Is.True);
+
+            var secondCycle = runner.Apply(new PlayerAction { Kind = PlayerActionKind.CycleLegendaryIcon, PlayerId = 0 });
+            Assert.That(secondCycle.Success, Is.False);
+
+            var chosen = player0.LegendaryChoices[0];
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.PickLegendaryIcon, PlayerId = 0, CardInstanceId = chosen.InstanceId });
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.KeepHand, PlayerId = 0 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.KeepHand, PlayerId = 1 });
+
+            Assert.That(runner.Match.Phase, Is.EqualTo(Phase.Site));
+            Assert.That(runner.Match.GetPlayer(0).Will, Is.EqualTo(0), "Cycling the Legendary Icon spends the first round's Will.");
+        }
+
+        [Test]
+        public void Mulligan_MulliganDrawsSix()
+        {
+            var printings = new List<CardPrinting>(BootstrapCards.All);
+            var runner = MatchRunner.FromSetup(printings, new[]
+            {
+                new SetupPlayer { PlayerId = 0, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+                new SetupPlayer { PlayerId = 1, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+            }, enablePregameFlow: true);
+
+            Assert.That(runner.Match.Phase, Is.EqualTo(Phase.Mulligan));
+            var player0 = runner.Match.GetPlayer(0);
+            Assert.That(player0.Hand.Count, Is.EqualTo(MatchConstants.OpeningHandSize));
+
+            var result = runner.Apply(new PlayerAction { Kind = PlayerActionKind.Mulligan, PlayerId = 0 });
+            Assert.That(result.Success, Is.True, result.Error);
+            Assert.That(player0.Hand.Count, Is.EqualTo(MatchConstants.MulliganHandSize));
+            Assert.That(player0.MulliganStepDone, Is.True);
+        }
+
+        [Test]
+        public void Mulligan_CycleHandCardSwapsOneCard()
+        {
+            var printings = new List<CardPrinting>(BootstrapCards.All);
+            var runner = MatchRunner.FromSetup(printings, new[]
+            {
+                new SetupPlayer { PlayerId = 0, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+                new SetupPlayer { PlayerId = 1, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 20) },
+            }, enablePregameFlow: true);
+
+            var player0 = runner.Match.GetPlayer(0);
+            var beforeCount = player0.Hand.Count;
+            var cardToCycle = player0.Hand[0];
+
+            var result = runner.Apply(new PlayerAction { Kind = PlayerActionKind.CycleHandCard, PlayerId = 0, CardInstanceId = cardToCycle.InstanceId });
+            Assert.That(result.Success, Is.True, result.Error);
+            Assert.That(player0.Hand.Count, Is.EqualTo(beforeCount));
+            Assert.That(player0.Hand.Exists(c => c.InstanceId == cardToCycle.InstanceId), Is.False);
+            Assert.That(player0.Deck.Exists(c => c.InstanceId == cardToCycle.InstanceId), Is.True);
+            Assert.That(player0.MulliganStepDone, Is.True);
+        }
+
+        [Test]
+        public void RandomizeSeatOrder_IsDrivenByInjectedRng()
+        {
+            var printings = new List<CardPrinting>(BootstrapCards.All);
+            SetupPlayer[] MakePlayers() => new[]
+            {
+                new SetupPlayer { PlayerId = 0, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 10) },
+                new SetupPlayer { PlayerId = 1, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 10) },
+                new SetupPlayer { PlayerId = 2, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 10) },
+            };
+
+            var matchA = MatchSetup.Create(new InMemoryCardDatabase(printings), new SeededRng(7), MakePlayers(), firstActivePlayerId: null, randomizeSeatOrder: true);
+            var matchB = MatchSetup.Create(new InMemoryCardDatabase(printings), new SeededRng(7), MakePlayers(), firstActivePlayerId: null, randomizeSeatOrder: true);
+
+            Assert.That(matchA.ActivePlayerId, Is.EqualTo(matchB.ActivePlayerId));
+            Assert.That(matchA.Players.Select(p => p.Id).ToList(), Is.EqualTo(matchB.Players.Select(p => p.Id).ToList()));
+        }
     }
 }

@@ -20,11 +20,17 @@ namespace Willbound.Engine
             this.view = view;
         }
 
-        public static MatchRunner FromSetup(IEnumerable<CardPrinting> printings, IList<SetupPlayer> players, int seed = 1, int firstActive = 0)
+        public static MatchRunner FromSetup(
+            IEnumerable<CardPrinting> printings,
+            IList<SetupPlayer> players,
+            int seed = 1,
+            int? firstActive = 0,
+            bool randomizeSeatOrder = false,
+            bool enablePregameFlow = false)
         {
             var db = new InMemoryCardDatabase(printings);
             var rng = new SeededRng(seed);
-            var match = MatchSetup.Create(db, rng, players, firstActive);
+            var match = MatchSetup.Create(db, rng, players, firstActive, randomizeSeatOrder, enablePregameFlow);
             return new MatchRunner(match, db, rng);
         }
 
@@ -75,6 +81,9 @@ namespace Willbound.Engine
             var player = Match.GetPlayer(action.PlayerId);
             if (player == null || player.Lost)
                 return "Invalid player.";
+
+            if (IsPregameAction(action.Kind))
+                return ApplyPregameAction(player, action);
 
             if (action.PlayerId != Match.PriorityPlayerId && action.Kind != PlayerActionKind.DeclarePress
                 && action.Kind != PlayerActionKind.DeclareHold && action.Kind != PlayerActionKind.Answer)
@@ -165,6 +174,159 @@ namespace Willbound.Engine
                     return;
                 }
             }
+        }
+
+        // Pregame flow (Phase.LegendaryDraft / Phase.Mulligan). Each seated player resolves their own
+        // step independently of Match.PriorityPlayerId — these aren't Stack actions, there's no priority
+        // window before the match has started.
+        static bool IsPregameAction(PlayerActionKind kind) =>
+            kind == PlayerActionKind.PickLegendaryIcon || kind == PlayerActionKind.CycleLegendaryIcon
+            || kind == PlayerActionKind.KeepHand || kind == PlayerActionKind.CycleHandCard || kind == PlayerActionKind.Mulligan;
+
+        string ApplyPregameAction(Player player, PlayerAction action)
+        {
+            switch (action.Kind)
+            {
+                case PlayerActionKind.PickLegendaryIcon: return PickLegendaryIcon(player, action);
+                case PlayerActionKind.CycleLegendaryIcon: return CycleLegendaryIcon(player);
+                case PlayerActionKind.KeepHand: return KeepHand(player);
+                case PlayerActionKind.CycleHandCard: return CycleHandCard(player, action);
+                case PlayerActionKind.Mulligan: return MulliganHand(player);
+                default: return "Unsupported pregame action.";
+            }
+        }
+
+        string PickLegendaryIcon(Player player, PlayerAction action)
+        {
+            if (Match.Phase != Phase.LegendaryDraft)
+                return "Not in Legendary Icon draft.";
+            if (player.LegendaryDraftDone)
+                return "Already drafted.";
+
+            CardInstance chosen = null;
+            for (var i = 0; i < player.LegendaryChoices.Count; i++)
+            {
+                if (player.LegendaryChoices[i].InstanceId == action.CardInstanceId)
+                {
+                    chosen = player.LegendaryChoices[i];
+                    break;
+                }
+            }
+
+            if (chosen == null)
+                return "Not one of your offered Legendary Icons.";
+
+            chosen.Zone = Zone.Field;
+            chosen.ControllerId = player.Id;
+            chosen.Ready = true;
+            chosen.Exhausted = false;
+            player.Icon = chosen;
+            player.Field.Add(chosen);
+
+            for (var i = 0; i < player.LegendaryChoices.Count; i++)
+            {
+                var declined = player.LegendaryChoices[i];
+                if (declined.InstanceId == chosen.InstanceId)
+                    continue;
+                declined.Zone = Zone.Supply;
+                declined.ControllerId = -1;
+                Match.Supply.Add(declined);
+            }
+
+            player.LegendaryChoices.Clear();
+            player.LegendaryDraftDone = true;
+            Emit(EventKind.LegendaryIconPicked, "player", player.Id, "instanceId", chosen.InstanceId);
+
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
+        }
+
+        string CycleLegendaryIcon(Player player)
+        {
+            if (Match.Phase != Phase.LegendaryDraft)
+                return "Not in Legendary Icon draft.";
+            if (player.LegendaryDraftDone)
+                return "Already drafted.";
+            if (player.LegendaryCycleUsed)
+                return "Legendary Icon cycle already used.";
+
+            player.LegendaryChoices.Clear();
+            player.LegendaryChoices = MatchSetup.RollLegendaryChoices(Match, database, rng, player.Id);
+            player.LegendaryCycleUsed = true;
+            player.SkipFirstWill = true;
+            Emit(EventKind.LegendaryIconOffered, "player", player.Id);
+            return null;
+        }
+
+        string KeepHand(Player player)
+        {
+            if (Match.Phase != Phase.Mulligan)
+                return "Not in the Mulligan step.";
+            if (player.MulliganStepDone)
+                return "Already resolved your opening hand.";
+
+            player.MulliganStepDone = true;
+            Emit(EventKind.HandKept, "player", player.Id);
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
+        }
+
+        string CycleHandCard(Player player, PlayerAction action)
+        {
+            if (Match.Phase != Phase.Mulligan)
+                return "Not in the Mulligan step.";
+            if (player.MulliganStepDone)
+                return "Already resolved your opening hand.";
+
+            var card = Match.GetCard(action.CardInstanceId ?? -1);
+            if (card == null || !player.Hand.Contains(card))
+                return "Card not in hand.";
+            if (player.Deck.Count == 0)
+                return "Deck is empty.";
+
+            player.Hand.Remove(card);
+            card.Zone = Zone.Deck;
+            player.Deck.Add(card);
+
+            var replacement = player.Deck[0];
+            player.Deck.RemoveAt(0);
+            replacement.Zone = Zone.Hand;
+            player.Hand.Add(replacement);
+
+            player.MulliganStepDone = true;
+            Emit(EventKind.HandCycled, "player", player.Id, "instanceId", card.InstanceId);
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
+        }
+
+        string MulliganHand(Player player)
+        {
+            if (Match.Phase != Phase.Mulligan)
+                return "Not in the Mulligan step.";
+            if (player.MulliganStepDone)
+                return "Already resolved your opening hand.";
+
+            for (var i = 0; i < player.Hand.Count; i++)
+            {
+                player.Hand[i].Zone = Zone.Deck;
+                player.Deck.Add(player.Hand[i]);
+            }
+
+            player.Hand.Clear();
+            rng.Shuffle(player.Deck);
+
+            for (var h = 0; h < MatchConstants.MulliganHandSize && player.Deck.Count > 0; h++)
+            {
+                var card = player.Deck[0];
+                player.Deck.RemoveAt(0);
+                card.Zone = Zone.Hand;
+                player.Hand.Add(card);
+            }
+
+            player.MulliganStepDone = true;
+            Emit(EventKind.HandMulliganed, "player", player.Id);
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
         }
 
         void AdvanceStepOrClashPhase()
