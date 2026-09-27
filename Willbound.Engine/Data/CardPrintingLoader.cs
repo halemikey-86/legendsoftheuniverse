@@ -4,6 +4,12 @@ using System.Text.Json;
 
 namespace Willbound.Engine
 {
+    /// <summary>Card JSON failed to load. The kernel never no-ops a malformed card — see Engine B law: "Unknown op fails the card load."</summary>
+    public sealed class CardLoadException : Exception
+    {
+        public CardLoadException(string message) : base(message) { }
+    }
+
     public static class CardPrintingLoader
     {
         public static CardPrinting Parse(string json)
@@ -84,6 +90,9 @@ namespace Willbound.Engine
                         foreach (var effectEl in effects.EnumerateArray())
                             ability.Effects.Add(ParseEffect(effectEl));
                     }
+
+                    if (!string.IsNullOrWhiteSpace(ability.Text) && ability.Effects.Count == 0)
+                        throw new CardLoadException($"{printing.Id ?? printing.Name}: ability '{ability.Name}' has text but no effects[].");
 
                     printing.Abilities.Add(ability);
                 }
@@ -176,10 +185,10 @@ namespace Willbound.Engine
         static EffectOp ParseOp(string value)
         {
             if (string.IsNullOrEmpty(value))
-                return EffectOp.If;
+                throw new CardLoadException("Effect is missing its 'op'.");
             if (Enum.TryParse<EffectOp>(value, true, out var op))
                 return op;
-            return EffectOp.If;
+            throw new CardLoadException($"Unknown effect op '{value}'.");
         }
 
         static EffectWhen ParseWhen(string value)

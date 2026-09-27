@@ -52,6 +52,8 @@ yarn-error.log*
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 *.csproj
+!/Willbound.Engine/Willbound.Engine.csproj
+!/Willbound.Engine.Tests/Willbound.Engine.Tests.csproj
 *.unityproj
 *.sln
 *.suo

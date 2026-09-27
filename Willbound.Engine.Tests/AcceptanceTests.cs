@@ -522,6 +522,65 @@ namespace Willbound.Engine.Tests
         }
 
         [Test]
+        public void Test36_StoreListEntersOpenSlotAndBuriesSecondCard()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            runner.Match.Store[0] = null; // open a slot so 4.12.97's "one enters Store" has somewhere to go
+            var supplyCountBefore = runner.Match.Supply.Count;
+            var first = runner.Match.Supply[0];
+            var second = runner.Match.Supply[1];
+
+            var announced = runner.Apply(new PlayerAction { Kind = PlayerActionKind.StoreList, PlayerId = 0, StoreKind = StoreActionKind.List });
+            Assert.That(announced.Success, Is.True, announced.Error);
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(runner.Match.Store[0], Is.SameAs(first));
+            Assert.That(first.Zone, Is.EqualTo(Zone.Store));
+            Assert.That(runner.Match.Supply[runner.Match.Supply.Count - 1], Is.SameAs(second));
+            Assert.That(second.Zone, Is.EqualTo(Zone.Supply));
+            Assert.That(runner.Match.Supply.Count, Is.EqualTo(supplyCountBefore - 1));
+        }
+
+        [Test]
+        public void Test37_StoreListLeavesFirstCardOnTopWhenStoreIsFull()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            Assert.That(runner.Match.Store, Has.All.Not.Null, "store starts full at 7");
+            var supplyCountBefore = runner.Match.Supply.Count;
+            var first = runner.Match.Supply[0];
+            var second = runner.Match.Supply[1];
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.StoreList, PlayerId = 0, StoreKind = StoreActionKind.List });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(runner.Match.Supply[0], Is.SameAs(first), "no open slot: the looked-at card stays on top for the next refill");
+            Assert.That(runner.Match.Supply[runner.Match.Supply.Count - 1], Is.SameAs(second));
+            Assert.That(runner.Match.Supply.Count, Is.EqualTo(supplyCountBefore));
+        }
+
+        [Test]
+        public void Loader_RejectsAbilityWithTextAndNoEffects()
+        {
+            const string json = @"{""id"":""BAD-01"",""name"":""Bad Card"",""type"":""Companion"",
+                ""abilities"":[{""name"":""Vague"",""timing"":""now"",""text"":""Do something undefined.""}]}";
+            Assert.Throws<CardLoadException>(() => CardPrintingLoader.Parse(json));
+        }
+
+        [Test]
+        public void Loader_RejectsUnknownEffectOp()
+        {
+            const string json = @"{""id"":""BAD-02"",""name"":""Bad Card"",""type"":""Companion"",
+                ""abilities"":[{""name"":""Broken"",""timing"":""now"",""text"":""Typo op."",
+                ""effects"":[{""op"":""DealDamagee""}]}]}";
+            Assert.Throws<CardLoadException>(() => CardPrintingLoader.Parse(json));
+        }
+
+        [Test]
         public void Test32_PriorityOrderAfterResolve()
         {
             var runner = TestHelpers.TwoPlayerMatch();

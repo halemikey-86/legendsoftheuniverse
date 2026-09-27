@@ -1011,6 +1011,41 @@ namespace Willbound.Engine
                     }
                     MatchSetup.RefillStore(Match, rng);
                     break;
+                case StoreActionKind.List:
+                    {
+                        // 4.12.97 — look at the top 2 of Supply; one enters Store, one goes to the bottom of Supply.
+                        if (Match.Supply.Count == 0)
+                            break;
+
+                        var first = Match.Supply[0];
+                        var second = Match.Supply.Count > 1 ? Match.Supply[1] : null;
+                        Match.Supply.RemoveAt(0);
+                        if (second != null)
+                            Match.Supply.RemoveAt(0); // second shifted down to index 0 once first left
+
+                        var placed = false;
+                        for (var i = 0; i < Match.Store.Length; i++)
+                        {
+                            if (Match.Store[i] != null)
+                                continue;
+                            Match.Store[i] = first;
+                            first.Zone = Zone.Store;
+                            first.ControllerId = -1;
+                            Emit(EventKind.CardMoved, "instanceId", first.InstanceId, "zone", Zone.Store.ToString());
+                            placed = true;
+                            break;
+                        }
+
+                        if (!placed)
+                            Match.Supply.Insert(0, first); // no open Store slot; leave on top for the next refill (4.12.99)
+
+                        if (second != null)
+                        {
+                            second.Zone = Zone.Supply;
+                            Match.Supply.Add(second);
+                        }
+                    }
+                    break;
                 case StoreActionKind.Keep:
                     break;
             }
