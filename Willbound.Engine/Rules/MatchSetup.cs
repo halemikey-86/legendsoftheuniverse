@@ -34,6 +34,10 @@ namespace Willbound.Engine
                 Round = 1,
                 Phase = Phase.Setup,
             };
+            match.EventLog.Add(GameEvent.Create(EventKind.MatchStarted, match.NextTs(), new Dictionary<string, object>
+            {
+                ["matchId"] = match.MatchId,
+            }));
 
             var orderedPlayers = new List<SetupPlayer>(setupPlayers);
             if (randomizeSeatOrder)

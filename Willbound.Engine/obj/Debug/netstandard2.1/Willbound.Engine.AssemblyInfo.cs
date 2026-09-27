@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Willbound.Engine")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c268147d0435964ccc157df6dadbae67a56cc1b9")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d49cce9b8bccf0a004f828b7891ddfd42c8afefd")]
 [assembly: System.Reflection.AssemblyProductAttribute("Willbound.Engine")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Willbound.Engine")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

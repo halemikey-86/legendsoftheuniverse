@@ -29,9 +29,10 @@ namespace Willbound.Engine
         public int AnswerOfferIndex;
         public bool ClashLocked;
         public int PressesDeclaredThisClash;
-        public bool FirstPressAggressionGranted;
-        public Dictionary<int, int> DoubleteamStrikeBonus = new Dictionary<int, int>();
-        public Dictionary<int, int> DoubleteamGuardBonus = new Dictionary<int, int>();
+        /// <summary>This-Clash additive Strike/Guard bonuses, keyed by CardInstance id. Written by
+        /// Doubleteam (4.8.48) and by the generic StrikeAdd/GuardAdd effect ops; cleared at Clash begin.</summary>
+        public Dictionary<int, int> StrikeBonusThisClash = new Dictionary<int, int>();
+        public Dictionary<int, int> GuardBonusThisClash = new Dictionary<int, int>();
         public Dictionary<int, int> ClashKeywordGrants = new Dictionary<int, int>();
         public bool StartStepComplete;
         public bool DrawStepComplete;

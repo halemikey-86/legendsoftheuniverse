@@ -21,7 +21,7 @@ namespace Willbound.Engine
         public static int EffectiveStrike(CardInstance source, Match match, int strikeSnapshot = 0)
         {
             var strike = strikeSnapshot > 0 ? strikeSnapshot : source.Strike;
-            if (match.DoubleteamStrikeBonus.TryGetValue(source.InstanceId, out var bonus))
+            if (match.StrikeBonusThisClash.TryGetValue(source.InstanceId, out var bonus))
                 strike += bonus;
             return strike;
         }
@@ -29,7 +29,7 @@ namespace Willbound.Engine
         public static int EffectiveGuard(CardInstance target, Match match)
         {
             var guard = target.Guard;
-            if (match.DoubleteamGuardBonus.TryGetValue(target.InstanceId, out var bonus))
+            if (match.GuardBonusThisClash.TryGetValue(target.InstanceId, out var bonus))
                 guard += bonus;
             return guard;
         }

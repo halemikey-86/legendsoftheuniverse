@@ -147,6 +147,12 @@ namespace Willbound.Engine
         ForEach,
         If,
         Unless,
+        LookStore,
+        Sweep,
+        GuardAdd,
+        StrikeAdd,
+        WillPay,
+        WorthPay,
     }
 
     public enum EffectWhen
@@ -163,6 +169,8 @@ namespace Willbound.Engine
         OnPressRemovedBody,
         OnRemoved,
         OnBanished,
+        OnAnswer,
+        OnStoreAction,
     }
 
     public enum PlayerActionKind

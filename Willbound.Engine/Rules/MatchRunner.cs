@@ -11,6 +11,7 @@ namespace Willbound.Engine
         readonly List<GameEvent> pendingEvents = new List<GameEvent>();
 
         public Match Match { get; private set; }
+        internal ICardDatabase Database => database;
 
         public MatchRunner(Match match, ICardDatabase database, IRng rng, IMatchView view = null)
         {
@@ -101,6 +102,8 @@ namespace Willbound.Engine
                     return DeclareHold(player, action);
                 case PlayerActionKind.Answer:
                     return AnswerPress(player, action);
+                case PlayerActionKind.Activate:
+                    return Activate(player, action);
                 case PlayerActionKind.Silence:
                     return Silence(player, action);
                 case PlayerActionKind.StoreBuy:
@@ -409,10 +412,11 @@ namespace Willbound.Engine
             Match.ClashQueue.Clear();
             Match.ClashLocked = false;
             Match.PressesDeclaredThisClash = 0;
-            Match.FirstPressAggressionGranted = false;
-            Match.DoubleteamStrikeBonus.Clear();
-            Match.DoubleteamGuardBonus.Clear();
+            Match.StrikeBonusThisClash.Clear();
+            Match.GuardBonusThisClash.Clear();
             Match.BodiesAwaitingDeclare.Clear();
+
+            FireHookOnAllFieldCards(EffectWhen.OnClashBegin);
 
             var active = Match.GetPlayer(Match.ActivePlayerId);
             for (var i = 0; i < active.Field.Count; i++)
@@ -428,6 +432,18 @@ namespace Willbound.Engine
             Match.ClashPhase = ClashPhase.C1_ActiveDeclare;
             Match.PriorityPlayerId = Match.ActivePlayerId;
             Emit(EventKind.PhaseChanged, "phase", Phase.Clash.ToString(), "clashPhase", ClashPhase.C1_ActiveDeclare.ToString());
+        }
+
+        /// <summary>OnClashBegin/OnClashEnd (C0/C8) fire on every permanent on every Field, not
+        /// just the active player's — the step boundary is global.</summary>
+        void FireHookOnAllFieldCards(EffectWhen hook)
+        {
+            for (var p = 0; p < Match.Players.Count; p++)
+            {
+                var owner = Match.Players[p];
+                for (var i = 0; i < owner.Field.Count; i++)
+                    EffectInterpreter.FireOwnHook(this, owner.Field[i], hook, new EffectContext(owner.Field[i], owner));
+            }
         }
 
         string DeclarePress(Player player, PlayerAction action)
@@ -448,7 +464,16 @@ namespace Willbound.Engine
             if (!Match.BodiesAwaitingDeclare.Contains(source.InstanceId))
                 return "Already declared.";
 
-            ApplyJarJarFirstPressGrant(source);
+            var targetError = ValidateTargetingKeywords(player, target);
+            if (targetError != null)
+                return targetError;
+
+            ApplyGrantKeywordOnDeclareEffects(source);
+
+            // Doubleteam must land before CreatePressStack snapshots Strike/Guard, or the bonus
+            // it just set would never be read.
+            if (action.DoubleteamHelperId.HasValue)
+                ApplyDoubleteam(source, Match.GetCard(action.DoubleteamHelperId.Value));
 
             if (source.HasKeyword(Keyword.Bazerk))
             {
@@ -468,9 +493,6 @@ namespace Willbound.Engine
             if (source.HasKeyword(Keyword.Still))
                 Emit(EventKind.HoldDeclared, "source", source.InstanceId);
 
-            if (action.DoubleteamHelperId.HasValue)
-                ApplyDoubleteam(source, Match.GetCard(action.DoubleteamHelperId.Value));
-
             Match.BodiesAwaitingDeclare.Remove(source.InstanceId);
             Match.PressesDeclaredThisClash++;
 
@@ -483,15 +505,46 @@ namespace Willbound.Engine
             return null;
         }
 
-        void ApplyJarJarFirstPressGrant(CardInstance source)
+        /// <summary>4.6.36/37 — Closed blocks an opponent from choosing this as a Press/Answer
+        /// target at all; Toll charges the announcer N extra Will now or the target is illegal.</summary>
+        string ValidateTargetingKeywords(Player announcer, CardInstance target)
         {
-            if (source.Printing.Id != "SITH-001")
-                return;
-            if (Match.FirstPressAggressionGranted)
-                return;
-            Match.FirstPressAggressionGranted = true;
-            source.FlagsThisClash.Add("FirstPressAggression");
-            source.KeywordsNow.Add(Keyword.Aggression);
+            if (target.ControllerId != announcer.Id && target.HasKeyword(Keyword.Closed))
+                return "Target is Closed.";
+
+            var toll = target.Toll;
+            if (toll > 0)
+            {
+                if (announcer.Will < toll)
+                    return "Toll unpaid: insufficient Will.";
+                announcer.Will -= toll;
+                Emit(EventKind.WillPaid, "player", announcer.Id, "amount", toll);
+            }
+
+            return null;
+        }
+
+        /// <summary>4.8.50 — GrantKeywordOnDeclare is evaluated against the declaring body's own
+        /// abilities every declare, for any card (not gated by printing id). Only "no Press
+        /// declared yet this Clash" is a supported filter today — see EffectInterpreter.EvaluateDeclareFilter.</summary>
+        void ApplyGrantKeywordOnDeclareEffects(CardInstance source)
+        {
+            for (var a = 0; a < source.Printing.Abilities.Count; a++)
+            {
+                var ability = source.Printing.Abilities[a];
+                for (var e = 0; e < ability.Effects.Count; e++)
+                {
+                    var effect = ability.Effects[e];
+                    if (effect.Op != EffectOp.GrantKeywordOnDeclare)
+                        continue;
+                    if (!EffectInterpreter.EvaluateDeclareFilter(effect.Filter, Match))
+                        continue;
+                    if (string.IsNullOrEmpty(effect.Keyword) || !Enum.TryParse<Keyword>(effect.Keyword, true, out var keyword))
+                        continue;
+                    source.KeywordsNow.Add(keyword);
+                    Emit(EventKind.KeywordGranted, "instanceId", source.InstanceId, "keyword", keyword.ToString(), "duration", "ThisClash");
+                }
+            }
         }
 
         void CreatePressStack(Player player, CardInstance source, CardInstance target, int wave, bool withAggression)
@@ -504,7 +557,7 @@ namespace Willbound.Engine
                 ControllerId = player.Id,
                 SourceInstanceId = source.InstanceId,
                 Wave = wave,
-                StrikeSnapshot = source.Strike + (Match.DoubleteamStrikeBonus.TryGetValue(source.InstanceId, out var s) ? s : 0),
+                StrikeSnapshot = source.Strike + (Match.StrikeBonusThisClash.TryGetValue(source.InstanceId, out var s) ? s : 0),
             };
             stackObj.Targets.Add(target.InstanceId);
             if (withAggression || (wave == 0 && source.HasKeyword(Keyword.Aggression)))
@@ -517,12 +570,11 @@ namespace Willbound.Engine
                 stackObj.Keywords.Add(Keyword.HeavyHitter);
             if (source.HasKeyword(Keyword.Drain))
                 stackObj.Keywords.Add(Keyword.Drain);
-            if (source.FlagsThisClash.Contains("FirstPressAggression"))
-                stackObj.Keywords.Add(Keyword.Aggression);
 
             Match.Stack.Add(stackObj);
             Emit(EventKind.StackPushed, "stackId", stackObj.StackId, "type", StackObjectType.Press.ToString());
             Emit(EventKind.PressDeclared, "stackId", stackObj.StackId, "source", source.InstanceId, "target", target.InstanceId, "wave", wave);
+            EffectInterpreter.FireOwnHook(this, source, EffectWhen.OnPressDeclared, new EffectContext(source, player, target));
         }
 
         void ApplyDoubleteam(CardInstance source, CardInstance helper)
@@ -531,7 +583,10 @@ namespace Willbound.Engine
                 return;
             if (helper.Printing.Type != CardType.Companion)
                 return;
-            Match.DoubleteamStrikeBonus[source.InstanceId] = helper.Strike;
+            // 4.8.48 — the helper's Strike boosts this Press now; its Guard boosts the same
+            // pressing body (`source`) if it's later Pressed itself this Clash.
+            Match.StrikeBonusThisClash[source.InstanceId] = helper.Strike;
+            Match.GuardBonusThisClash[source.InstanceId] = helper.Guard;
         }
 
         string DeclareHold(Player player, PlayerAction action)
@@ -552,6 +607,7 @@ namespace Willbound.Engine
             Match.BodiesAwaitingDeclare.Remove(source.InstanceId);
             Emit(EventKind.HoldDeclared, "source", source.InstanceId);
             Emit(EventKind.Exhausted, "instanceId", source.InstanceId);
+            EffectInterpreter.FireOwnHook(this, source, EffectWhen.OnHold, new EffectContext(source, player));
 
             if (Match.BodiesAwaitingDeclare.Count == 0)
             {
@@ -574,6 +630,10 @@ namespace Willbound.Engine
             if (source.ControllerId != player.Id || !source.Ready || source.Exhausted)
                 return "Answer illegal.";
 
+            var targetError = ValidateTargetingKeywords(player, target);
+            if (targetError != null)
+                return targetError;
+
             var stackObj = new StackObject
             {
                 StackId = Match.NextStack(),
@@ -595,6 +655,7 @@ namespace Willbound.Engine
             Match.Stack.Add(stackObj);
             source.Exhausted = true;
             Emit(EventKind.PressAnswered, "stackId", stackObj.StackId, "source", source.InstanceId, "target", target.InstanceId);
+            EffectInterpreter.FireOwnHook(this, source, EffectWhen.OnAnswer, new EffectContext(source, player, target));
             return null;
         }
 
@@ -606,6 +667,8 @@ namespace Willbound.Engine
 
             var card = Match.GetCard(action.CardInstanceId ?? -1);
             player.Will -= card.Printing.WillCost;
+            if (card.Printing.WillCost > 0)
+                Emit(EventKind.WillPaid, "player", player.Id, "amount", card.Printing.WillCost);
 
             var stackObj = new StackObject
             {
@@ -617,6 +680,8 @@ namespace Willbound.Engine
                 PrintingId = card.Printing.Id,
                 PaidWill = card.Printing.WillCost,
             };
+            if (action.TargetInstanceId.HasValue)
+                stackObj.Targets.Add(action.TargetInstanceId.Value);
             Match.Stack.Add(stackObj);
             Emit(EventKind.StackPushed, "stackId", stackObj.StackId, "type", StackObjectType.PlayCard.ToString());
             Match.Passed.Clear();
@@ -668,6 +733,76 @@ namespace Willbound.Engine
             }
 
             return false;
+        }
+
+        /// <summary>7.2's PlayerAction.Activate — pay costWill, put the ability on the Stack.
+        /// Its effects[] run when it resolves (ResolveActivate), same as any other ability.</summary>
+        string Activate(Player player, PlayerAction action)
+        {
+            var source = Match.GetCard(action.CardInstanceId ?? -1);
+            if (source == null || source.ControllerId != player.Id || source.Zone is not (Zone.Field or Zone.Willwell))
+                return "Invalid activation source.";
+
+            var index = action.AbilityIndex ?? -1;
+            if (index < 0 || index >= source.Printing.Abilities.Count)
+                return "Invalid ability index.";
+
+            var ability = source.Printing.Abilities[index];
+            if (ability.Timing != Timing.Activated)
+                return "That ability is not Activated.";
+
+            var onceKey = $"{source.InstanceId}:{index}";
+            if (ability.OncePerTurn && source.FlagsThisTurn.Contains("Activated:" + onceKey))
+                return "Already activated this turn.";
+            if (ability.OncePerClash && source.FlagsThisClash.Contains("Activated:" + onceKey))
+                return "Already activated this Clash.";
+            if (ability.OncePerGame && player.OncePerGameFlags.Contains(onceKey))
+                return "Already activated this game.";
+
+            if (player.Will < ability.CostWill)
+                return "Insufficient Will.";
+            player.Will -= ability.CostWill;
+            if (ability.CostWill > 0)
+                Emit(EventKind.WillPaid, "player", player.Id, "amount", ability.CostWill);
+
+            if (ability.OncePerTurn)
+                source.FlagsThisTurn.Add("Activated:" + onceKey);
+            if (ability.OncePerClash)
+                source.FlagsThisClash.Add("Activated:" + onceKey);
+            if (ability.OncePerGame)
+                player.OncePerGameFlags.Add(onceKey);
+
+            var stackObj = new StackObject
+            {
+                StackId = Match.NextStack(),
+                Timestamp = Match.NextTs(),
+                Type = StackObjectType.Activate,
+                ControllerId = player.Id,
+                SourceInstanceId = source.InstanceId,
+                AbilityIndex = index,
+                PaidWill = ability.CostWill,
+            };
+            if (action.TargetInstanceId.HasValue)
+                stackObj.Targets.Add(action.TargetInstanceId.Value);
+            Match.Stack.Add(stackObj);
+            Emit(EventKind.StackPushed, "stackId", stackObj.StackId, "type", StackObjectType.Activate.ToString());
+            Match.Passed.Clear();
+            GivePriorityToNextLiving();
+            return null;
+        }
+
+        void ResolveActivate(StackObject obj)
+        {
+            var player = Match.GetPlayer(obj.ControllerId);
+            var source = Match.GetCard(obj.SourceInstanceId ?? -1);
+            if (player == null || source == null || !obj.AbilityIndex.HasValue)
+                return;
+            if (obj.AbilityIndex.Value < 0 || obj.AbilityIndex.Value >= source.Printing.Abilities.Count)
+                return;
+
+            var ability = source.Printing.Abilities[obj.AbilityIndex.Value];
+            var chosenTarget = obj.Targets.Count > 0 ? Match.GetCard(obj.Targets[0]) : null;
+            EffectInterpreter.RunAbility(this, ability, new EffectContext(source, player, chosenTarget));
         }
 
         string StoreAction(Player player, PlayerAction action)
@@ -814,6 +949,9 @@ namespace Willbound.Engine
                 case StackObjectType.StoreAction:
                     ResolveStore(obj);
                     break;
+                case StackObjectType.Activate:
+                    ResolveActivate(obj);
+                    break;
                 case StackObjectType.Press:
                     if (Match.Phase == Phase.Clash && !Match.ClashLocked)
                     {
@@ -864,9 +1002,20 @@ namespace Willbound.Engine
                 card.Ready = true;
                 card.Exhausted = false;
                 Emit(EventKind.PermanentEntered, "instanceId", card.InstanceId, "zone", Zone.Field.ToString());
+
+                if (card.Printing.Type == CardType.Bond)
+                {
+                    var host = obj.Targets.Count > 0 ? Match.GetCard(obj.Targets[0]) : null;
+                    host ??= player.Icon; // 4.7.42 — a legal default when no host was chosen
+                    AttachBond(card, host);
+                }
+
+                EffectInterpreter.FireOwnHook(this, card, EffectWhen.OnEnter, new EffectContext(card, player));
             }
             else
             {
+                // Surge / Algorithm — 4.7.40/41: run its effects, then it goes to Removed.
+                EffectInterpreter.RunImmediate(this, card, new EffectContext(card, player, obj.Targets.Count > 0 ? Match.GetCard(obj.Targets[0]) : null));
                 Match.Removed.Add(card);
                 card.Zone = Zone.Removed;
             }
@@ -892,7 +1041,7 @@ namespace Willbound.Engine
             return null;
         }
 
-        int PayWorth(Player player, int amount)
+        internal int PayWorth(Player player, int amount)
         {
             if (amount <= 0)
                 return 0;
@@ -901,7 +1050,7 @@ namespace Willbound.Engine
             return amount;
         }
 
-        int GainWorth(Player player, int amount)
+        internal int GainWorth(Player player, int amount)
         {
             if (player == null || amount <= 0)
                 return 0;
@@ -913,6 +1062,100 @@ namespace Willbound.Engine
         void EmitWorthChanged(Player player, int delta)
         {
             Emit(EventKind.WorthChanged, "player", player.Id, "delta", delta, "amount", player.Worth);
+        }
+
+        internal void GainHonor(Player player, int amount)
+        {
+            if (player == null || amount == 0)
+                return;
+            player.Honor += amount;
+            Emit(EventKind.HonorChanged, "player", player.Id, "delta", amount, "amount", player.Honor);
+        }
+
+        /// <summary>Generic card-effect draw (5.3 Draw op). Shares rule 4.4.18's empty-deck-loses
+        /// consequence with the Start-step draw in MatchSetup.ApplyStartAutomatic.</summary>
+        internal void DrawCards(Player player, int count)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                if (player.Deck.Count == 0)
+                {
+                    var events = new List<GameEvent>();
+                    StateChecks.EliminatePlayer(Match, player, LossReason.EmptyDeckDraw, events, Match.NextTs());
+                    RecordEvents(events);
+                    return;
+                }
+
+                var card = player.Deck[0];
+                player.Deck.RemoveAt(0);
+                card.Zone = Zone.Hand;
+                player.Hand.Add(card);
+                Emit(EventKind.CardDrew, "player", player.Id, "instanceId", card.InstanceId);
+            }
+        }
+
+        internal void RecordEvents(List<GameEvent> events)
+        {
+            pendingEvents.AddRange(events);
+            Match.EventLog.AddRange(events);
+        }
+
+        /// <summary>Base rule 4.7.42 — a resolving Bond attaches to its chosen host. Also reachable
+        /// from card effects via the AttachBond op (e.g. an ability that re-homes a Bond).</summary>
+        internal void AttachBond(CardInstance bond, CardInstance host)
+        {
+            if (bond == null || host == null || host.Zone != Zone.Field || host.ControllerId != bond.ControllerId)
+                return;
+            bond.HostInstanceId = host.InstanceId;
+            Emit(EventKind.BondAttached, "bond", bond.InstanceId, "host", host.InstanceId);
+        }
+
+        internal void SilenceStackObject(int stackId)
+        {
+            var target = FindStack(stackId);
+            if (target == null)
+                return;
+            RefundSilenced(target);
+            target.Fizzled = true;
+            Match.Stack.Remove(target);
+            Emit(EventKind.Silenced, "stackId", target.StackId);
+            Emit(EventKind.StackPopped, "stackId", target.StackId, "fizzled", true);
+        }
+
+        /// <summary>LookStore (new op, no fixed Engine B rule number) — peek the top N Supply cards,
+        /// placing each into an open Store slot if one exists; anything that doesn't fit goes to the
+        /// bottom of Supply rather than being lost.</summary>
+        internal void PeekSupplyIntoStore(int count)
+        {
+            var lookedAt = new List<CardInstance>();
+            for (var i = 0; i < count && Match.Supply.Count > 0; i++)
+            {
+                lookedAt.Add(Match.Supply[0]);
+                Match.Supply.RemoveAt(0);
+            }
+
+            for (var i = 0; i < lookedAt.Count; i++)
+            {
+                var card = lookedAt[i];
+                var placed = false;
+                for (var s = 0; s < Match.Store.Length; s++)
+                {
+                    if (Match.Store[s] != null)
+                        continue;
+                    Match.Store[s] = card;
+                    card.Zone = Zone.Store;
+                    card.ControllerId = -1;
+                    Emit(EventKind.CardMoved, "instanceId", card.InstanceId, "zone", Zone.Store.ToString());
+                    placed = true;
+                    break;
+                }
+
+                if (!placed)
+                {
+                    card.Zone = Zone.Supply;
+                    Match.Supply.Add(card);
+                }
+            }
         }
 
         /// <summary>Sell always puts the card into the Store. If every slot is full, the last
@@ -1049,6 +1292,9 @@ namespace Willbound.Engine
                 case StoreActionKind.Keep:
                     break;
             }
+
+            if (obj.StoreKind.HasValue)
+                EffectInterpreter.FireOnStoreAction(this, player, obj.StoreKind.Value);
         }
 
         void LockClashAndResolve()
@@ -1077,6 +1323,7 @@ namespace Willbound.Engine
             ResolveNormalWave();
             ResolveAftereffects();
             Match.ClashPhase = ClashPhase.C8_End;
+            FireHookOnAllFieldCards(EffectWhen.OnClashEnd);
             Match.Phase = Phase.End;
             Match.PriorityPlayerId = Match.ActivePlayerId;
         }
@@ -1104,9 +1351,10 @@ namespace Willbound.Engine
                 var press = Match.ClashQueue[i];
                 if (press.Skipped)
                     continue;
-                if (!press.Keywords.Contains(Keyword.Aggression) && press.Wave != 0)
-                    continue;
-                if (press.Wave == 1 && !Match.GetCard(press.SourceInstanceId).HasKeyword(Keyword.Bazerk))
+                // 4.8.60 — Aggression Presses, including every Bazerk wave 0 (always tagged
+                // Aggression at declare — see CreatePressStack), deal here. Nothing else does:
+                // an ordinary non-Aggression wave-0 press belongs in C6 only.
+                if (!press.Keywords.Contains(Keyword.Aggression))
                     continue;
                 DealPressDamage(press);
             }
@@ -1173,11 +1421,10 @@ namespace Willbound.Engine
             if (target.CurrentHealth <= 0)
                 press.RemovedTarget = true;
 
-            if (source.Printing.Id == "SITH-001" && damage > 0 && source.FlagsThisClash.Contains("FirstPressAggression"))
-            {
-                source.PutCounter("anger", 1);
-                Emit(EventKind.CounterPut, "instanceId", source.InstanceId, "name", "anger", "amount", 1);
-            }
+            var controller = Match.GetPlayer(source.ControllerId);
+            EffectInterpreter.FireOwnHook(this, source, EffectWhen.OnPressDealtDamage, new EffectContext(source, controller, target, damage));
+            if (press.RemovedTarget)
+                EffectInterpreter.FireOwnHook(this, source, EffectWhen.OnPressRemovedBody, new EffectContext(source, controller, target, damage));
 
             if (press.Keywords.Contains(Keyword.Drain))
             {
@@ -1250,9 +1497,31 @@ namespace Willbound.Engine
             var events = StateChecks.Run(Match);
             pendingEvents.AddRange(events);
             Match.EventLog.AddRange(events);
+            FireRemovalHooks(events);
         }
 
-        void Emit(EventKind kind, params object[] keyValuePairs)
+        /// <summary>OnRemoved for anything the state-based checks (4.10) pulled off a Field this
+        /// pass. A ceased Token isn't retrievable afterward (it lands in no zone list at all), so
+        /// it doesn't get a hook fire here — a documented, untested edge case.</summary>
+        void FireRemovalHooks(List<GameEvent> events)
+        {
+            for (var i = 0; i < events.Count; i++)
+            {
+                var e = events[i];
+                if (e.Kind != EventKind.PermanentLeft)
+                    continue;
+                if (!e.Data.TryGetValue("zone", out var zoneObj) || !(zoneObj is string zoneStr) || zoneStr != Zone.Field.ToString())
+                    continue;
+                if (!e.Data.TryGetValue("instanceId", out var idObj) || !(idObj is int instanceId))
+                    continue;
+                var card = Match.GetCard(instanceId);
+                if (card == null)
+                    continue;
+                EffectInterpreter.FireOwnHook(this, card, EffectWhen.OnRemoved, new EffectContext(card, Match.GetPlayer(card.ControllerId)));
+            }
+        }
+
+        internal void Emit(EventKind kind, params object[] keyValuePairs)
         {
             var data = new Dictionary<string, object>();
             for (var i = 0; i + 1 < keyValuePairs.Length; i += 2)

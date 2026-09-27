@@ -208,6 +208,8 @@ namespace Willbound.Engine
                 case "OnPressRemovedBody": return EffectWhen.OnPressRemovedBody;
                 case "OnRemoved": return EffectWhen.OnRemoved;
                 case "OnBanished": return EffectWhen.OnBanished;
+                case "OnAnswer": return EffectWhen.OnAnswer;
+                case "OnStoreAction": return EffectWhen.OnStoreAction;
                 default: return EffectWhen.Immediate;
             }
         }

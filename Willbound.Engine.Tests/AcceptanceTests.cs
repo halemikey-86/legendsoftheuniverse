@@ -581,6 +581,245 @@ namespace Willbound.Engine.Tests
         }
 
         [Test]
+        public void Test39_IconFixtureGrantsAggressionAndAngerWithoutPrintingIdGate()
+        {
+            // Same ability shape as Jar Jar (SITH-001) under a different printing id, to prove the
+            // GrantKeywordOnDeclare / OnPressDealtDamage hook runs generically off effects[], not
+            // off a hardcoded printing.Id check.
+            const string json = @"{
+                ""id"": ""TEST-PHANTOM-ICON"", ""name"": ""Generic Phantom Icon"", ""type"": ""Icon"",
+                ""strike"": 3, ""guard"": 4, ""health"": 8, ""startsInPlay"": true,
+                ""abilities"": [{
+                    ""name"": ""Phantom Hand"", ""timing"": ""clash"",
+                    ""text"": ""First Press each Clash has Aggression; put 1 Anger when it deals damage."",
+                    ""effects"": [
+                        { ""op"": ""GrantKeywordOnDeclare"", ""filter"": ""FirstPressYouDeclareThisClash"", ""keyword"": ""Aggression"" },
+                        { ""op"": ""PutCounter"", ""when"": ""OnPressDealtDamage"", ""counter"": ""anger"", ""amount"": 1, ""target"": ""Self"" }
+                    ]
+                }]
+            }";
+            var phantomIcon = CardPrintingLoader.Parse(json);
+            var printings = new List<CardPrinting>(BootstrapCards.All) { phantomIcon };
+            var runner = MatchRunner.FromSetup(printings, new[]
+            {
+                new SetupPlayer { PlayerId = 0, IconId = "TEST-PHANTOM-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 10) },
+                new SetupPlayer { PlayerId = 1, IconId = "VANILLA-ICON", DeckIds = TestHelpers.FillDeck("VANILLA-COMPANION", 10) },
+            });
+            var icon = runner.Match.GetPlayer(0).Icon;
+            Assert.That(icon.Printing.Id, Is.Not.EqualTo("SITH-001"));
+            var target = TestHelpers.PutCompanionInField(runner, 1, BootstrapCards.VanillaCompanion());
+
+            runner.AdvanceToClash();
+            var result = runner.Apply(new PlayerAction { Kind = PlayerActionKind.DeclarePress, PlayerId = 0, CardInstanceId = icon.InstanceId, TargetInstanceId = target.InstanceId });
+            Assert.That(result.Success, Is.True, result.Error);
+            Assert.That(icon.HasKeyword(Keyword.Aggression), Is.True);
+
+            runner.FinishClashPipeline();
+            Assert.That(icon.GetCounter("anger"), Is.GreaterThanOrEqualTo(1));
+        }
+
+        [Test]
+        public void Test40_BondAttachesToChosenHostAndIsRemovedWhenHostLeaves()
+        {
+            const string json = @"{""id"":""TEST-BOND-1"",""name"":""Test Bond"",""type"":""Bond""}";
+            var bondPrinting = CardPrintingLoader.Parse(json);
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            var host = TestHelpers.PutCompanionInField(runner, 0, BootstrapCards.VanillaStriker());
+
+            var bond = MatchSetup.CreateInstance(runner.Match, new InMemoryCardDatabase(new[] { bondPrinting }), bondPrinting.Id, 0, Zone.Hand);
+            player.Hand.Add(bond);
+
+            var announced = runner.Apply(new PlayerAction { Kind = PlayerActionKind.PlayCard, PlayerId = 0, CardInstanceId = bond.InstanceId, TargetInstanceId = host.InstanceId });
+            Assert.That(announced.Success, Is.True, announced.Error);
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(bond.HostInstanceId, Is.EqualTo(host.InstanceId));
+            Assert.That(player.Field.Contains(bond), Is.True);
+
+            host.DamageMarked = host.Health;
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = runner.Match.PriorityPlayerId });
+
+            Assert.That(player.Field.Contains(host), Is.False);
+            Assert.That(player.Field.Contains(bond), Is.False);
+            Assert.That(runner.Match.Removed.Contains(bond), Is.True);
+        }
+
+        [Test]
+        public void Test41_ActivatePaysWillAndRunsEffects()
+        {
+            const string json = @"{
+                ""id"": ""TEST-ACTIVATOR"", ""name"": ""Test Activator"", ""type"": ""Relic"",
+                ""abilities"": [{
+                    ""name"": ""Tap for Worth"", ""timing"": ""activated"", ""costWill"": 2,
+                    ""text"": ""Pay 2 Will: Gain 3 Worth."",
+                    ""effects"": [{ ""op"": ""GainWorth"", ""amount"": 3 }]
+                }]
+            }";
+            var printing = CardPrintingLoader.Parse(json);
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            player.Will = 5;
+            var beforeWorth = player.Worth;
+            var relic = MatchSetup.CreateInstance(runner.Match, new InMemoryCardDatabase(new[] { printing }), printing.Id, 0, Zone.Field);
+            player.Field.Add(relic);
+
+            var announced = runner.Apply(new PlayerAction { Kind = PlayerActionKind.Activate, PlayerId = 0, CardInstanceId = relic.InstanceId, AbilityIndex = 0 });
+            Assert.That(announced.Success, Is.True, announced.Error);
+            Assert.That(player.Will, Is.EqualTo(3));
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth), "the effect runs on resolve, not announce");
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth + 3));
+        }
+
+        [Test]
+        public void Test42_SweepRemovesUpToNOpposingPermanents()
+        {
+            const string json = @"{
+                ""id"": ""TEST-SWEEP-SURGE"", ""name"": ""Test Board Wipe"", ""type"": ""Surge"", ""willCost"": 0,
+                ""abilities"": [{
+                    ""name"": ""Wipe"", ""timing"": ""now"", ""text"": ""Remove up to 2 permanents from an opponent's Field."",
+                    ""effects"": [{ ""op"": ""Sweep"", ""amount"": 2, ""filter"": ""OpponentField"" }]
+                }]
+            }";
+            var printing = CardPrintingLoader.Parse(json);
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            TestHelpers.PutCompanionInField(runner, 1, BootstrapCards.VanillaCompanion());
+            TestHelpers.PutCompanionInField(runner, 1, BootstrapCards.VanillaCompanion());
+            TestHelpers.PutCompanionInField(runner, 1, BootstrapCards.VanillaCompanion());
+            var defender = runner.Match.GetPlayer(1);
+            Assert.That(defender.Field.Count, Is.EqualTo(4)); // 3 Companions + Icon
+
+            var surge = MatchSetup.CreateInstance(runner.Match, new InMemoryCardDatabase(new[] { printing }), printing.Id, 0, Zone.Hand);
+            runner.Match.GetPlayer(0).Hand.Add(surge);
+
+            var announced = runner.Apply(new PlayerAction { Kind = PlayerActionKind.PlayCard, PlayerId = 0, CardInstanceId = surge.InstanceId });
+            Assert.That(announced.Success, Is.True, announced.Error);
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(defender.Field.Count, Is.EqualTo(2)); // Icon + 1 surviving Companion
+            Assert.That(defender.Field.Count(c => c.Printing.Type == CardType.Companion), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void Test43_HonorAddChangesHonorOnlyNotWillOrWorth()
+        {
+            const string json = @"{
+                ""id"": ""TEST-HONOR-SURGE"", ""name"": ""Test Honor Grant"", ""type"": ""Surge"", ""willCost"": 0,
+                ""abilities"": [{ ""name"": ""Glory"", ""timing"": ""now"", ""text"": ""Gain 2 Honor."",
+                    ""effects"": [{ ""op"": ""GainHonor"", ""amount"": 2 }] }]
+            }";
+            var printing = CardPrintingLoader.Parse(json);
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            var beforeWill = player.Will;
+            var beforeWorth = player.Worth;
+            var surge = MatchSetup.CreateInstance(runner.Match, new InMemoryCardDatabase(new[] { printing }), printing.Id, 0, Zone.Hand);
+            player.Hand.Add(surge);
+
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.PlayCard, PlayerId = 0, CardInstanceId = surge.InstanceId });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            Assert.That(player.Honor, Is.EqualTo(2));
+            Assert.That(player.Will, Is.EqualTo(beforeWill));
+            Assert.That(player.Worth, Is.EqualTo(beforeWorth));
+        }
+
+        [Test]
+        public void Test44_OnStoreActionLookStoreActuallyLooks()
+        {
+            const string json = @"{
+                ""id"": ""RELIC-SCOUT"", ""name"": ""Market Scout"", ""type"": ""Relic"",
+                ""abilities"": [{
+                    ""name"": ""Scout the River"", ""timing"": ""static"",
+                    ""text"": ""Whenever you List or Buy, look at the top 3 of Supply."",
+                    ""effects"": [{ ""op"": ""LookStore"", ""when"": ""OnStoreAction"", ""filter"": ""List|Buy"", ""amount"": 3 }]
+                }]
+            }";
+            var printing = CardPrintingLoader.Parse(json);
+            var runner = TestHelpers.TwoPlayerMatch();
+            runner.AdvanceToMain();
+            var player = runner.Match.GetPlayer(0);
+            var scout = MatchSetup.CreateInstance(runner.Match, new InMemoryCardDatabase(new[] { printing }), printing.Id, 0, Zone.Field);
+            player.Field.Add(scout);
+
+            var lookedAt = new List<CardInstance> { runner.Match.Supply[0], runner.Match.Supply[1], runner.Match.Supply[2] };
+            var supplyCountBefore = runner.Match.Supply.Count;
+
+            var announced = runner.Apply(new PlayerAction { Kind = PlayerActionKind.StoreBuy, PlayerId = 0, StoreSlotIndex = 0, StoreKind = StoreActionKind.Buy });
+            Assert.That(announced.Success, Is.True, announced.Error);
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 1 });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.Pass, PlayerId = 0 });
+
+            // Buy just emptied slot 0; LookStore(3) finds only that one open slot, so the first
+            // looked-at card lands there and the other two return to the bottom of Supply.
+            Assert.That(runner.Match.Store[0], Is.SameAs(lookedAt[0]));
+            Assert.That(runner.Match.Supply[runner.Match.Supply.Count - 2], Is.SameAs(lookedAt[1]));
+            Assert.That(runner.Match.Supply[runner.Match.Supply.Count - 1], Is.SameAs(lookedAt[2]));
+            Assert.That(runner.Match.Supply.Count, Is.EqualTo(supplyCountBefore - 1));
+        }
+
+        [Test]
+        public void Test45_DoubleteamAddsHelperStrikeAndGuard()
+        {
+            var runner = TestHelpers.TwoPlayerMatch();
+            var attacker = TestHelpers.PutCompanionInField(runner, 0, new CardPrinting
+            {
+                Id = "DT-ATTACKER", Name = "Attacker", Type = CardType.Companion, Strike = 3, Guard = 1, Health = 5,
+            });
+            var helper = TestHelpers.PutCompanionInField(runner, 0, new CardPrinting
+            {
+                Id = "DT-HELPER", Name = "Helper", Type = CardType.Companion, Strike = 2, Guard = 4, Health = 3,
+            });
+            var defender = TestHelpers.PutCompanionInField(runner, 1, new CardPrinting
+            {
+                Id = "DT-DEFENDER", Name = "Defender", Type = CardType.Companion, Strike = 2, Guard = 0, Health = 10,
+            });
+            var icon0 = runner.Match.GetPlayer(0).Icon;
+
+            runner.AdvanceToClash();
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.DeclareHold, PlayerId = 0, CardInstanceId = icon0.InstanceId });
+            runner.Apply(new PlayerAction { Kind = PlayerActionKind.DeclareHold, PlayerId = 0, CardInstanceId = helper.InstanceId });
+            runner.Apply(new PlayerAction
+            {
+                Kind = PlayerActionKind.DeclarePress,
+                PlayerId = 0,
+                CardInstanceId = attacker.InstanceId,
+                TargetInstanceId = defender.InstanceId,
+                DoubleteamHelperId = helper.InstanceId,
+            });
+
+            Assert.That(runner.Match.StrikeBonusThisClash[attacker.InstanceId], Is.EqualTo(2));
+            Assert.That(runner.Match.GuardBonusThisClash[attacker.InstanceId], Is.EqualTo(4));
+
+            runner.Apply(new PlayerAction
+            {
+                Kind = PlayerActionKind.Answer,
+                PlayerId = 1,
+                CardInstanceId = defender.InstanceId,
+                TargetInstanceId = attacker.InstanceId,
+            });
+
+            runner.FinishClashPipeline();
+
+            // Strike-side: attacker's Press dealt 3+2(helper)-0(guard) = 5.
+            Assert.That(defender.CurrentHealth, Is.EqualTo(10 - 5));
+            // Guard-side: defender's Answer dealt max(0, 2-(1+4)) = 0 — without the Doubleteam
+            // Guard bonus this would have been max(0, 2-1) = 1 and the attacker would be damaged.
+            Assert.That(attacker.CurrentHealth, Is.EqualTo(attacker.Health));
+        }
+
+        [Test]
         public void Test32_PriorityOrderAfterResolve()
         {
             var runner = TestHelpers.TwoPlayerMatch();
