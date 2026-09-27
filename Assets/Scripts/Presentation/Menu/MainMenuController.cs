@@ -1,5 +1,7 @@
+using System.Collections;
 using System.Collections.Generic;
 using LegendsOfTheUniverse.Presentation;
+using LegendsOfTheUniverse.Presentation.Background;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
@@ -25,6 +27,7 @@ namespace LegendsOfTheUniverse.Presentation.Menu
             GameSettings.ApplyAll();
             AudioListenerBootstrap.EnsureExists();
             EnsureEventSystem();
+            SpaceBackgroundView.Attach(Camera.main);
             BuildUi();
             PlayMenuMusic();
             ShowMainScreen();
@@ -33,7 +36,10 @@ namespace LegendsOfTheUniverse.Presentation.Menu
         void BuildUi()
         {
             var canvas = MenuUiBuilder.CreateCanvas("MainMenuCanvas");
-            MenuUiBuilder.CreateFullScreenBackground(canvas.transform, MenuUiBuilder.Background);
+            // Fully transparent — the space background camera (see SpaceBackgroundView.Attach in
+            // Awake) shows through here; individual screens still have their own semi-transparent
+            // PanelColor backing for text contrast.
+            MenuUiBuilder.CreateFullScreenBackground(canvas.transform, Color.clear);
 
             mainScreen = BuildMainScreen(canvas.transform);
             startGameScreen = BuildStartGameScreen(canvas.transform);
@@ -292,11 +298,23 @@ namespace LegendsOfTheUniverse.Presentation.Menu
 
         void PlayMenuMusic()
         {
+            StartCoroutine(PlayMenuMusicRoutine());
+        }
+
+        IEnumerator PlayMenuMusicRoutine()
+        {
             var clip = LoadMenuMusic();
             if (clip == null)
-                return;
+                yield break;
 
-            musicSource = gameObject.AddComponent<AudioSource>();
+            yield return GameMusic.WaitUntilReady(clip);
+            if (clip.loadState != AudioDataLoadState.Loaded)
+                yield break;
+
+            AudioListenerBootstrap.EnsureExists();
+            if (musicSource == null)
+                musicSource = gameObject.AddComponent<AudioSource>();
+
             musicSource.clip = clip;
             musicSource.loop = true;
             musicSource.playOnAwake = false;

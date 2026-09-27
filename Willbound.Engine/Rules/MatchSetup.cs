@@ -1,7 +1,22 @@
+using System;
 using System.Collections.Generic;
 
 namespace Willbound.Engine
 {
+    public static class MatchConstants
+    {
+        /// <summary>Cards dealt to each player's opening hand before the Mulligan step.</summary>
+        public const int OpeningHandSize = 7;
+
+        /// <summary>Recommended deck size a deck-builder should produce. Not hard-enforced by the
+        /// match kernel itself — see Rule 93, deck size cannot exceed <see cref="MaxDeckSize"/>.</summary>
+        public const int StandardDeckSize = 40;
+
+        public const int MaxDeckSize = 100;
+
+        public const int MulliganHandSize = 6;
+    }
+
     public static class MatchSetup
     {
         // 4.1 match setup
@@ -9,20 +24,24 @@ namespace Willbound.Engine
             ICardDatabase database,
             IRng rng,
             IList<SetupPlayer> setupPlayers,
-            int firstActivePlayerId = 0)
+            int? firstActivePlayerId = 0,
+            bool randomizeSeatOrder = false,
+            bool enablePregameFlow = false)
         {
             var match = new Match
             {
                 MatchId = System.Guid.NewGuid().ToString("N"),
                 Round = 1,
                 Phase = Phase.Setup,
-                ActivePlayerId = firstActivePlayerId,
-                PriorityPlayerId = firstActivePlayerId,
             };
 
-            for (var i = 0; i < setupPlayers.Count; i++)
+            var orderedPlayers = new List<SetupPlayer>(setupPlayers);
+            if (randomizeSeatOrder)
+                rng.Shuffle(orderedPlayers);
+
+            for (var i = 0; i < orderedPlayers.Count; i++)
             {
-                var spec = setupPlayers[i];
+                var spec = orderedPlayers[i];
                 var player = new Player
                 {
                     Id = spec.PlayerId,
@@ -33,10 +52,18 @@ namespace Willbound.Engine
                     Will = 0,
                 };
 
-                player.Icon = CreateInstance(match, database, spec.IconId, spec.PlayerId, Zone.Field);
-                player.Icon.Ready = true;
-                player.Icon.Exhausted = false;
-                player.Field.Add(player.Icon);
+                if (spec.DraftLegendaryIcon)
+                {
+                    player.LegendaryChoices = RollLegendaryChoices(match, database, rng, spec, spec.PlayerId);
+                }
+                else
+                {
+                    player.Icon = CreateInstance(match, database, spec.IconId, spec.PlayerId, Zone.Field);
+                    player.Icon.Ready = true;
+                    player.Icon.Exhausted = false;
+                    player.Field.Add(player.Icon);
+                    player.LegendaryDraftDone = true;
+                }
 
                 for (var d = 0; d < spec.DeckIds.Count; d++)
                 {
@@ -46,13 +73,13 @@ namespace Willbound.Engine
 
                 rng.Shuffle(player.Deck);
 
-                for (var h = 0; h < spec.HandIds.Count && h < 5; h++)
+                for (var h = 0; h < spec.HandIds.Count && h < MatchConstants.OpeningHandSize; h++)
                 {
                     var card = CreateInstance(match, database, spec.HandIds[h], spec.PlayerId, Zone.Hand);
                     player.Hand.Add(card);
                 }
 
-                for (var h = player.Hand.Count; h < 5 && player.Deck.Count > 0; h++)
+                for (var h = player.Hand.Count; h < MatchConstants.OpeningHandSize && player.Deck.Count > 0; h++)
                 {
                     var card = player.Deck[0];
                     player.Deck.RemoveAt(0);
@@ -67,6 +94,9 @@ namespace Willbound.Engine
                     player.Field.Add(card);
                 }
 
+                if (!enablePregameFlow)
+                    player.MulliganStepDone = true;
+
                 match.Players.Add(player);
             }
 
@@ -79,9 +109,92 @@ namespace Willbound.Engine
 
             rng.Shuffle(match.Supply);
             RefillStore(match, rng);
-            match.Phase = Phase.Start;
-            BeginTurn(match, rng);
+
+            var resolvedFirstActive = firstActivePlayerId
+                ?? (randomizeSeatOrder ? match.Players[rng.NextInt(0, match.Players.Count)].Id : match.Players[0].Id);
+            match.ActivePlayerId = resolvedFirstActive;
+            match.PriorityPlayerId = resolvedFirstActive;
+            if (randomizeSeatOrder)
+                match.EventLog.Add(GameEvent.Create(EventKind.TurnOrderRandomized, match.NextTs(), new Dictionary<string, object> { ["firstActive"] = resolvedFirstActive }));
+
+            if (!enablePregameFlow)
+            {
+                match.Phase = Phase.Start;
+                BeginTurn(match, rng);
+                return match;
+            }
+
+            match.Phase = Phase.LegendaryDraft;
+            AdvancePregameIfReady(match, rng);
             return match;
+        }
+
+        static bool AllSeatedPlayersDone(Match match, Func<Player, bool> doneSelector)
+        {
+            for (var i = 0; i < match.Players.Count; i++)
+            {
+                var p = match.Players[i];
+                if (!p.Lost && !doneSelector(p))
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>Advances Setup -> LegendaryDraft -> Mulligan -> Start once every seated player has
+        /// resolved the current pregame step. Safe to call after every pregame PlayerAction.</summary>
+        public static void AdvancePregameIfReady(Match match, IRng rng)
+        {
+            if (match.Phase == Phase.LegendaryDraft && AllSeatedPlayersDone(match, p => p.LegendaryDraftDone))
+            {
+                rng.Shuffle(match.Supply);
+                match.Phase = Phase.Mulligan;
+            }
+
+            if (match.Phase == Phase.Mulligan && AllSeatedPlayersDone(match, p => p.MulliganStepDone))
+            {
+                match.Phase = Phase.Start;
+                BeginTurn(match, rng);
+            }
+        }
+
+        public static List<CardInstance> RollLegendaryChoices(Match match, ICardDatabase database, IRng rng, SetupPlayer spec, int ownerId, int count = 3)
+        {
+            if (spec.LegendaryIconChoiceIds.Count > 0)
+            {
+                var choices = new List<CardInstance>();
+                for (var i = 0; i < count && i < spec.LegendaryIconChoiceIds.Count; i++)
+                    choices.Add(CreateInstance(match, database, spec.LegendaryIconChoiceIds[i], ownerId, Zone.Field));
+                match.EventLog.Add(GameEvent.Create(EventKind.LegendaryIconOffered, match.NextTs(), new Dictionary<string, object> { ["player"] = ownerId }));
+                return choices;
+            }
+
+            return RollLegendaryChoices(match, database, rng, ownerId, count);
+        }
+
+        /// <summary>Rolls fresh Legendary Icon choices from the catalog's legendary Icon pool. Used both
+        /// for a player's initial draft-of-3 and for the one-time reroll (Rule: cycle costs your first
+        /// round's Will).</summary>
+        public static List<CardInstance> RollLegendaryChoices(Match match, ICardDatabase database, IRng rng, int ownerId, int count = 3)
+        {
+            var pool = new List<string>();
+            foreach (var printing in database.All)
+            {
+                if (printing.Type == CardType.Icon && printing.IsLegendary)
+                    pool.Add(printing.Id);
+            }
+
+            rng.Shuffle(pool);
+            var choices = new List<CardInstance>();
+            for (var i = 0; i < count && i < pool.Count; i++)
+                choices.Add(CreateInstance(match, database, pool[i], ownerId, Zone.Field));
+
+            match.EventLog.Add(GameEvent.Create(EventKind.LegendaryIconOffered, match.NextTs(), new Dictionary<string, object>
+            {
+                ["player"] = ownerId,
+            }));
+
+            return choices;
         }
 
         static List<string> specSupplyIds(ICardDatabase database, IList<SetupPlayer> players)
@@ -161,7 +274,10 @@ namespace Willbound.Engine
             ReadiedAll(match, player);
 
             // 4.4.17 Will pool = min(Round, 8)
-            var will = System.Math.Min(match.Round, 8);
+            // Exception: a player who paid to cycle their Legendary Icon draft spent their first
+            // round's Will on that reroll instead.
+            var will = player.SkipFirstWill ? 0 : System.Math.Min(match.Round, 8);
+            player.SkipFirstWill = false;
             player.Will = will;
             match.EventLog.Add(GameEvent.Create(EventKind.WillSet, match.NextTs(), new Dictionary<string, object>
             {
@@ -263,8 +379,18 @@ namespace Willbound.Engine
         public List<string> StartInFieldIds = new List<string>();
 
         /// <summary>Explicit opening hand (e.g. the hand the player already reviewed/kept). Any remaining
-        /// slots up to 5 cards are filled from the top of the shuffled Deck, same as when this is empty.</summary>
+        /// slots up to <see cref="MatchConstants.OpeningHandSize"/> are filled from the top of the shuffled
+        /// Deck, same as when this is empty.</summary>
         public List<string> HandIds = new List<string>();
+
+        /// <summary>When true, this player brings no fixed Icon — they draft one of 3 Legendary Icon
+        /// choices during Phase.LegendaryDraft instead. Requires <see cref="MatchSetup.Create"/> to be
+        /// called with enablePregameFlow: true.</summary>
+        public bool DraftLegendaryIcon;
+
+        /// <summary>Optional pre-rolled 3 Legendary Icon choices (for deterministic tests/replays). If
+        /// empty, the kernel rolls 3 at random from the catalog's legendary Icon pool.</summary>
+        public List<string> LegendaryIconChoiceIds = new List<string>();
     }
 
     public static class KeywordParser

@@ -127,11 +127,49 @@ namespace Willbound.Table
             exhaustRoutine = null;
         }
 
+        WorldAnchoredUi healthUi;
+
         public void SetHealth(int current, int max)
         {
-            // Health chip UI hook — v1 logs; chip mesh can be added per set theme.
-            if (current != max)
-                gameObject.name = $"{gameObject.name} [{current}/{max}]";
+            if (GetComponent<IconLifeView>() != null)
+                return;
+
+            // Relics, Bonds, and Will sites print Health 0. Do not invent a 0/1 Body chip.
+            if (max <= 0)
+            {
+                if (healthUi != null)
+                    healthUi.gameObject.SetActive(false);
+                return;
+            }
+
+            current = Mathf.Max(0, current);
+            if (current >= max)
+            {
+                if (healthUi != null)
+                    healthUi.gameObject.SetActive(false);
+                return;
+            }
+
+            if (healthUi == null)
+            {
+                healthUi = WorldAnchoredUi.CreateLabeled(
+                    transform,
+                    "Body",
+                    "Health",
+                    new Vector3(0f, 0.5f, -1.15f),
+                    new Vector2(120f, 64f),
+                    22);
+            }
+
+            healthUi.gameObject.SetActive(true);
+            healthUi.Value = $"{current}/{max}";
+            healthUi.Subtitle = "Damaged";
+        }
+
+        void OnDestroy()
+        {
+            if (healthUi != null)
+                Destroy(healthUi.gameObject);
         }
 
         void SetGhost(bool ghost)

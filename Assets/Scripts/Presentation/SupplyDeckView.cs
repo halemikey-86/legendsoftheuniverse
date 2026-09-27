@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace LegendsOfTheUniverse.Presentation
 {
     /// <summary>
-    /// Face-down supply deck pile with a screen-space counter beneath it.
+    /// Face-down supply deck pile with a screen-space counter above it.
     /// </summary>
     [DisallowMultipleComponent]
     public class SupplyDeckView : MonoBehaviour
@@ -20,7 +20,9 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float layerDepthOffset = 0.045f;
 
         [Header("Counter")]
-        [SerializeField] Vector3 countWorldOffset = new(0f, 0f, -1.2f);
+        // +Z is up-screen under the table's top-down camera; the pile's own half-depth is
+        // ~2.66 world units (CardLayout.Depth(deckCardScale) / 2), so this clears its top edge.
+        [SerializeField] Vector3 countWorldOffset = new(0f, 0f, 3.2f);
         [SerializeField] Vector2 countScreenSize = new(88f, 40f);
         [SerializeField] int countFontSize = 28;
 

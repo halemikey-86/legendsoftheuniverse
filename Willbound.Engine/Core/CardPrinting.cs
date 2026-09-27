@@ -18,6 +18,9 @@ namespace Willbound.Engine
         public int Guard;
         public int Health;
         public bool StartsInPlay;
+
+        /// <summary>Icon drafted from a pool of 3 at match setup instead of being brought fixed. Same CardType.Icon rules.</summary>
+        public bool IsLegendary;
         public List<string> Keywords = new List<string>();
         public List<AbilityPrinting> Abilities = new List<AbilityPrinting>();
     }

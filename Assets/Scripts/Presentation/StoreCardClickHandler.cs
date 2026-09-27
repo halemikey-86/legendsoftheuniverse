@@ -31,6 +31,12 @@ namespace LegendsOfTheUniverse.Presentation
                 storeView.HandleCardHoverExit(cardView);
         }
 
+        void OnMouseOver()
+        {
+            if (cardView != null)
+                CardMagnifyView.NotifyPointerOver(cardView);
+        }
+
         void OnMouseDown()
         {
             if (storeView != null && cardView != null && storeView.CanInteractCards)

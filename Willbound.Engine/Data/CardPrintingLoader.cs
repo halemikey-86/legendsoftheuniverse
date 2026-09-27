@@ -47,13 +47,15 @@ namespace Willbound.Engine
                 Type = ParseType(GetString(el, "type")),
                 Subtype = GetString(el, "subtype"),
                 Role = GetString(el, "role"),
-                WillCost = GetInt(el, "willCost"),
-                StoreWorth = GetInt(el, "storeWorth"),
+                WillCost = GetInt(el, "willCost", "will"),
+                StoreWorth = GetInt(el, "storeWorth", "worth"),
                 Strike = GetInt(el, "strike"),
                 Guard = GetInt(el, "guard"),
                 Health = GetInt(el, "health"),
                 StartsInPlay = GetBool(el, "startsInPlay"),
             };
+
+            printing.IsLegendary = GetBool(el, "legendary") || IsLegendaryByArtConvention(el, printing.Type);
 
             if (el.TryGetProperty("keywords", out var keywords))
             {
@@ -136,8 +138,22 @@ namespace Willbound.Engine
                 case "willsite":
                 case "will": return CardType.WillSite;
                 case "token": return CardType.Token;
+                // Remnant is a frame/assembly tag on a Relic, Bond, or Icon (design doc glossary 3.1),
+                // not its own type — cards printed with type "Remnant" are Relics underneath.
+                case "remnant":
+                case "universe": return CardType.Relic;
                 default: return CardType.Companion;
             }
+        }
+
+        static bool IsLegendaryByArtConvention(JsonElement el, CardType type)
+        {
+            if (type != CardType.Icon)
+                return false;
+            var artFile = GetString(el, "artFile");
+            var proofFile = GetString(el, "proofFile");
+            return (artFile != null && artFile.StartsWith("Legendary Icon", StringComparison.OrdinalIgnoreCase))
+                || (proofFile != null && proofFile.StartsWith("Legendary Icon", StringComparison.OrdinalIgnoreCase));
         }
 
         static Timing ParseTiming(string value)
@@ -190,8 +206,16 @@ namespace Willbound.Engine
         static string GetString(JsonElement el, string name) =>
             el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String ? prop.GetString() : null;
 
-        static int GetInt(JsonElement el, string name) =>
-            el.TryGetProperty(name, out var prop) && prop.TryGetInt32(out var value) ? value : 0;
+        static int GetInt(JsonElement el, params string[] names)
+        {
+            for (var i = 0; i < names.Length; i++)
+            {
+                if (el.TryGetProperty(names[i], out var prop) && prop.TryGetInt32(out var value))
+                    return value;
+            }
+
+            return 0;
+        }
 
         static bool GetBool(JsonElement el, string name) =>
             el.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.True;

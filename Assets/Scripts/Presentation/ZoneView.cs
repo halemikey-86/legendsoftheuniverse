@@ -103,7 +103,6 @@ namespace LegendsOfTheUniverse.Presentation
         {
             EnsureRoots();
             RebuildMarkers();
-            EnsureLabel();
             UpdateLabelValue();
         }
 
@@ -137,10 +136,16 @@ namespace LegendsOfTheUniverse.Presentation
 
         void EnsureLabel()
         {
-            if (labelUi != null)
+            if (labelUi != null || zoneKind != ZoneKind.Pile)
                 return;
 
             labelUi = WorldAnchoredUi.CreateValueOnly(transform, labelWorldOffset, labelPanelSize);
+        }
+
+        void OnDestroy()
+        {
+            if (labelUi != null)
+                Destroy(labelUi.gameObject);
         }
 
         void RebuildMarkers()
@@ -302,22 +307,21 @@ namespace LegendsOfTheUniverse.Presentation
 
         void UpdateLabelValue()
         {
-            if (labelUi == null)
+            if (zoneKind != ZoneKind.Pile)
                 return;
 
-            if (zoneKind == ZoneKind.Slots)
+            if (pileCount <= 0)
             {
-                var occupied = 0;
-                for (var i = 0; i < slotCards.Count; i++)
-                {
-                    if (slotCards[i] != null)
-                        occupied++;
-                }
-
-                labelUi.Value = $"{occupied}/{slotCount}";
+                if (labelUi != null)
+                    labelUi.gameObject.SetActive(false);
                 return;
             }
 
+            EnsureLabel();
+            if (labelUi == null)
+                return;
+
+            labelUi.gameObject.SetActive(true);
             labelUi.Value = pileCount.ToString();
         }
     }

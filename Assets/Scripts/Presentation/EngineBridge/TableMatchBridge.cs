@@ -184,6 +184,8 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
 
             PublishResult(result);
+            if (IsStoreAction(action.Kind))
+                ResolveWaitingOwnStack();
             KickNonLocalActors();
             return result;
         }
@@ -254,6 +256,85 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
 
             return TryPassPriority(out error);
+        }
+
+        public bool TryDeclarePress(int attackerInstanceId, int? targetInstanceId, out string error)
+        {
+            error = null;
+            if (!IsActive)
+            {
+                error = "Engine not active.";
+                return false;
+            }
+
+            if (botActing)
+            {
+                error = "Opponent is acting.";
+                return false;
+            }
+
+            var match = runner.Match;
+            if (match.Phase != Phase.Clash || match.ClashPhase != ClashPhase.C1_ActiveDeclare)
+            {
+                error = "Press is only available during Clash declare.";
+                return false;
+            }
+
+            if (targetInstanceId == null || targetInstanceId.Value <= 0)
+                targetInstanceId = DefaultPressTargetId();
+
+            if (targetInstanceId == null)
+            {
+                error = "No legal Press target.";
+                return false;
+            }
+
+            var result = ApplyThenAdvance(new PlayerAction
+            {
+                Kind = PlayerActionKind.DeclarePress,
+                PlayerId = localPlayerId,
+                CardInstanceId = attackerInstanceId,
+                TargetInstanceId = targetInstanceId,
+            });
+
+            if (!result.Success)
+            {
+                error = result.Error;
+                EngineError?.Invoke(error);
+                return false;
+            }
+
+            PublishResult(result);
+            KickNonLocalActors();
+            return true;
+        }
+
+        public int? DefaultPressTargetId()
+        {
+            if (!IsActive)
+                return null;
+
+            var opponent = runner.Match.GetPlayer(localPlayerId == 0 ? 1 : 0);
+            if (opponent?.Icon != null && opponent.Icon.CurrentHealth > 0)
+                return opponent.Icon.InstanceId;
+
+            if (opponent?.Field == null)
+                return null;
+
+            CardInstance best = null;
+            for (var i = 0; i < opponent.Field.Count; i++)
+            {
+                var body = opponent.Field[i];
+                if (body == null || body.CurrentHealth <= 0)
+                    continue;
+                var type = body.Printing?.Type;
+                if (type != CardType.Icon && type != CardType.Companion && type != CardType.Token)
+                    continue;
+                if (best == null || body.CurrentHealth < best.CurrentHealth)
+                    best = body;
+            }
+
+            return best?.InstanceId;
         }
 
         public bool CanPlayCard(int cardInstanceId)
@@ -352,85 +433,124 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
 
         public bool TryStoreBuy(int storeSlotIndex, out string error)
         {
-            error = null;
-            if (!IsActive)
-            {
-                error = "Engine not active.";
-                return false;
-            }
-
-            if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
-            {
-                error = "Store actions are only available during your Main phase (once per turn).";
-                return false;
-            }
-
-            if (botActing)
-            {
-                error = "Opponent is acting.";
-                return false;
-            }
-
-            var result = ApplyThenAdvance(new PlayerAction
+            return TryStoreAction(new PlayerAction
             {
                 Kind = PlayerActionKind.StoreBuy,
                 PlayerId = localPlayerId,
                 StoreSlotIndex = storeSlotIndex,
                 StoreKind = StoreActionKind.Buy,
-            });
-
-            if (!result.Success)
-            {
-                error = result.Error;
-                EngineError?.Invoke(error);
-                return false;
-            }
-
-            ProcessEvents(result.Events);
-            SyncHudFromEngine();
-            RaisePhaseChanged(false);
-            return true;
+            }, out error);
         }
 
         public bool TryStoreSell(int handCardInstanceId, out string error)
+        {
+            return TryStoreAction(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreSell,
+                PlayerId = localPlayerId,
+                HandCardInstanceId = handCardInstanceId,
+                StoreKind = StoreActionKind.Sell,
+            }, out error);
+        }
+
+        public bool TryStoreTrade(int storeSlotIndex, int handCardInstanceId, out string error)
+        {
+            return TryStoreAction(new PlayerAction
+            {
+                Kind = PlayerActionKind.StoreTrade,
+                PlayerId = localPlayerId,
+                StoreSlotIndex = storeSlotIndex,
+                HandCardInstanceId = handCardInstanceId,
+                StoreKind = StoreActionKind.Trade,
+            }, out error);
+        }
+
+        public void NotifyError(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+                return;
+            EngineError?.Invoke(message);
+        }
+
+        bool TryStoreAction(PlayerAction action, out string error)
         {
             error = null;
             if (!IsActive)
             {
                 error = "Engine not active.";
+                NotifyError(error);
                 return false;
             }
 
             if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
             {
                 error = "Store actions are only available during your Main phase (once per turn).";
+                NotifyError(error);
                 return false;
             }
 
             if (botActing)
             {
                 error = "Opponent is acting.";
+                NotifyError(error);
                 return false;
             }
 
-            var result = ApplyThenAdvance(new PlayerAction
-            {
-                Kind = PlayerActionKind.StoreSell,
-                PlayerId = localPlayerId,
-                HandCardInstanceId = handCardInstanceId,
-                StoreKind = StoreActionKind.Sell,
-            });
-
+            var result = ApplyThenAdvance(action);
             if (!result.Success)
             {
                 error = result.Error;
-                EngineError?.Invoke(error);
+                NotifyError(error);
                 return false;
             }
 
             PublishResult(result);
+            ResolveWaitingOwnStack();
             KickNonLocalActors();
             return true;
+        }
+
+        /// <summary>
+        /// Store actions sit on the stack. Auto-pass unanswered priority so Buy/Sell/Trade actually
+        /// resolve in the same click — matching how the bot already auto-yields your own plays.
+        /// </summary>
+        void ResolveWaitingOwnStack()
+        {
+            for (var i = 0; i < MaxAutoPasses; i++)
+            {
+                if (!IsActive)
+                    return;
+                if (runner.Match.Stack == null || runner.Match.Stack.Count == 0)
+                    return;
+                if (!OwnPlayWaitingToResolve(runner.Match))
+                    return;
+
+                var match = runner.Match;
+                var pid = match.PriorityPlayerId;
+                if (pid != localPlayerId && IsBotMatch)
+                {
+                    var response = bot.Choose(runner, pid);
+                    if (response.Kind != PlayerActionKind.Pass)
+                    {
+                        var applied = runner.Apply(response);
+                        if (applied.Success)
+                        {
+                            PublishResult(applied);
+                            continue;
+                        }
+                    }
+                }
+
+                var pass = runner.Apply(new PlayerAction
+                {
+                    Kind = PlayerActionKind.Pass,
+                    PlayerId = pid,
+                });
+                if (!pass.Success)
+                    return;
+
+                PublishResult(pass);
+            }
         }
 
         ApplyResult ApplyThenAdvance(PlayerAction action)
@@ -497,7 +617,7 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 if (!passResult.Success)
                     break;
 
-                ProcessEvents(passResult.Events);
+                PublishResult(passResult);
             }
         }
 
@@ -614,8 +734,30 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             if (match.Stack == null || match.Stack.Count == 0)
                 return false;
 
-            var top = match.Stack[match.Stack.Count - 1];
-            return top.ControllerId == localPlayerId && top.Type != StackObjectType.Press;
+            for (var i = 0; i < match.Stack.Count; i++)
+            {
+                var obj = match.Stack[i];
+                if (obj.ControllerId == localPlayerId && obj.Type != StackObjectType.Press)
+                    return true;
+            }
+
+            return false;
+        }
+
+        static bool IsStoreAction(PlayerActionKind kind)
+        {
+            switch (kind)
+            {
+                case PlayerActionKind.StoreBuy:
+                case PlayerActionKind.StoreSell:
+                case PlayerActionKind.StoreTrade:
+                case PlayerActionKind.StoreKeep:
+                case PlayerActionKind.StoreList:
+                case PlayerActionKind.StoreRow:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         bool LocalHasResponse(Match match)
@@ -694,9 +836,14 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
                 case EventKind.WorthChanged:
                     if (TryInt(e, "player", out var worthPlayer) && worthPlayer == localPlayerId)
                     {
-                        var player = runner.Match.GetPlayer(localPlayerId);
-                        if (player != null)
-                            playmatZones?.SetWorth(player.Worth);
+                        if (TryInt(e, "amount", out var worthAmount))
+                            playmatZones?.SetWorth(worthAmount);
+                        else
+                        {
+                            var player = runner.Match.GetPlayer(localPlayerId);
+                            if (player != null)
+                                playmatZones?.SetWorth(player.Worth);
+                        }
                     }
                     break;
                 case EventKind.PhaseChanged:
@@ -731,10 +878,17 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             }
         }
 
+        public void RefreshHud() => SyncHudFromEngine();
+
         void SyncHudFromEngine()
         {
             if (!IsActive)
                 return;
+
+            if (playmatZones == null)
+                playmatZones = PlaymatZonesView.Instance != null
+                    ? PlaymatZonesView.Instance
+                    : GetComponent<PlaymatZonesView>();
 
             var match = runner.Match;
             var player = match.GetPlayer(localPlayerId);

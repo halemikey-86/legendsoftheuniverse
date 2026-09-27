@@ -431,25 +431,31 @@
     ]
   },
   "packageFolders": {
-    "/Users/michaeljhale/.nuget/packages/": {}
+    "C:\\Users\\Chemeleon\\.nuget\\packages\\": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/Willbound.Engine.csproj",
+      "projectUniqueName": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
       "projectName": "Willbound.Engine",
-      "projectPath": "/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/Willbound.Engine.csproj",
-      "packagesPath": "/Users/michaeljhale/.nuget/packages/",
-      "outputPath": "/Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/",
+      "projectPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj",
+      "packagesPath": "C:\\Users\\Chemeleon\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\obj\\",
       "projectStyle": "PackageReference",
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
       "configFilePaths": [
-        "/Users/michaeljhale/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\Chemeleon\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
         "netstandard2.1"
       ],
       "sources": {
-        "/usr/local/share/dotnet/library-packs": {},
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -467,7 +473,8 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      }
+      },
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "netstandard2.1": {
@@ -494,7 +501,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.404/RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.318\\RuntimeIdentifierGraph.json"
       }
     }
   }

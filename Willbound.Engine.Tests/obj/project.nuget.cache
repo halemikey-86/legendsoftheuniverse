@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "+9k7jqYW/ws=",
+  "dgSpecHash": "mw9VaiJ1Sy4=",
   "success": true,
-  "projectFilePath": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\Willbound.Engine.Tests.csproj",
+  "projectFilePath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\Willbound.Engine.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Chemeleon\\.nuget\\packages\\microsoft.codecoverage\\17.11.1\\microsoft.codecoverage.17.11.1.nupkg.sha512",
     "C:\\Users\\Chemeleon\\.nuget\\packages\\microsoft.net.test.sdk\\17.11.1\\microsoft.net.test.sdk.17.11.1.nupkg.sha512",

@@ -82,6 +82,7 @@ namespace Willbound.Table
             if (actionHost == null || !actionHost.IsActive || instanceId <= 0)
                 return false;
 
+            RefreshSnapshot();
             var snap = snapshot;
             if (snap.PriorityPlayerId != snap.LocalPlayerId)
                 return false;

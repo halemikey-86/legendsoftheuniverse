@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Willbound.Engine.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+38e85627664baa87d41c397fdfb30bd2e2acdd5f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+18882b558e3734f90389114f7a54565a7e9feea8")]
 [assembly: System.Reflection.AssemblyProductAttribute("Willbound.Engine.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Willbound.Engine.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

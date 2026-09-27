@@ -336,6 +336,36 @@ namespace LegendsOfTheUniverse.Presentation
                 hoveredCard = null;
         }
 
+        /// <summary>Drops visuals whose engine card has left that slot (bought, traded, or replaced).</summary>
+        public void ReconcileFromEngine(IReadOnlyList<CardInstance> engineStore)
+        {
+            EnsureStoreSlotList();
+            for (var i = 0; i < storeSlotCount && i < storeCards.Count; i++)
+            {
+                var visual = storeCards[i];
+                if (visual == null)
+                    continue;
+
+                var engine = engineStore != null && i < engineStore.Count ? engineStore[i] : null;
+                var visualId = visual.EngineCardInstanceId;
+                if (engine != null && visualId.HasValue && engine.InstanceId == visualId.Value)
+                    continue;
+
+                if (selectedCard == visual)
+                    selectedCard = null;
+                if (hoveredCard == visual)
+                    hoveredCard = null;
+
+                storeCards[i] = null;
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                    DestroyImmediate(visual.gameObject);
+                else
+#endif
+                    Destroy(visual.gameObject);
+            }
+        }
+
         public IEnumerator PlaceRiverLegendariesRoutine(IReadOnlyList<CardView> legendaries)
         {
             if (legendaries == null || legendaries.Count == 0)

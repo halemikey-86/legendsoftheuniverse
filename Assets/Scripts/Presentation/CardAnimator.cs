@@ -15,6 +15,7 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float dealArcHeight = 0.35f;
 
         Coroutine activeRoutine;
+        int animGeneration;
 
         void Reset()
         {
@@ -31,6 +32,7 @@ namespace LegendsOfTheUniverse.Presentation
 
         public void Cancel()
         {
+            animGeneration++;
             if (activeRoutine == null)
                 return;
 
@@ -129,6 +131,7 @@ namespace LegendsOfTheUniverse.Presentation
             if (this == null || cardView == null)
                 yield break;
 
+            var generation = ++animGeneration;
             var startPosition = transform.position;
             var startRotation = transform.rotation;
             var endRotation = targetRotation ?? startRotation;
@@ -137,6 +140,9 @@ namespace LegendsOfTheUniverse.Presentation
 
             while (elapsed < duration)
             {
+                if (generation != animGeneration)
+                    yield break;
+
                 elapsed += Time.deltaTime;
                 var t = Mathf.SmoothStep(0f, 1f, elapsed / duration);
                 if (this == null || cardView == null)
@@ -147,7 +153,7 @@ namespace LegendsOfTheUniverse.Presentation
                 yield return null;
             }
 
-            if (this == null || cardView == null)
+            if (generation != animGeneration || this == null || cardView == null)
                 yield break;
 
             transform.position = targetPosition;

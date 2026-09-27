@@ -1,3 +1,4 @@
+using LegendsOfTheUniverse.Presentation.Background;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -13,6 +14,7 @@ namespace LegendsOfTheUniverse.Presentation
     public class TableView : MonoBehaviour
     {
         const string DefaultPlaymatMaterialPath = "Assets/Materials/Playmat.mat";
+        const string SpaceBackgroundLayerName = "SpaceBackground";
 
         static readonly Quaternion TopDownRotation = Quaternion.LookRotation(Vector3.down, Vector3.forward);
         static readonly Quaternion PlaymatRotation = Quaternion.Euler(0f, 180f, 0f);
@@ -22,6 +24,11 @@ namespace LegendsOfTheUniverse.Presentation
         [SerializeField] float cameraHeight = 10f;
         [SerializeField] bool orthographic = true;
         [SerializeField] float orthographicSize = PlaymatZones.RecommendedOrthoSize;
+
+        [Header("Background")]
+        [Tooltip("Cinematic deep-space flythrough rendered behind the playmat, visible wherever the top-down table camera doesn't draw opaque content (the margin around the mat).")]
+        [SerializeField] bool showSpaceBackground = true;
+        Camera spaceCamera;
 
         [Header("Playmat")]
         [SerializeField] Transform matRoot;
@@ -97,15 +104,48 @@ namespace LegendsOfTheUniverse.Presentation
             tableCamera.orthographic = orthographic;
             tableCamera.nearClipPlane = 0.01f;
             tableCamera.farClipPlane = 500f;
-            tableCamera.clearFlags = CameraClearFlags.SolidColor;
-            tableCamera.backgroundColor = playmatColor;
             tableCamera.tag = "MainCamera";
             tableCamera.enabled = true;
             tableCamera.gameObject.SetActive(true);
             tableCamera.depth = 0;
 
+            SetupSpaceBackground();
+
             FitCameraToPlaymat();
             AudioListenerBootstrap.AttachToCamera(tableCamera);
+        }
+
+        void SetupSpaceBackground()
+        {
+            if (!showSpaceBackground)
+            {
+                tableCamera.clearFlags = CameraClearFlags.SolidColor;
+                tableCamera.backgroundColor = playmatColor;
+                tableCamera.cullingMask = -1;
+                return;
+            }
+
+            if (spaceCamera == null)
+            {
+                var spaceCameraObject = new GameObject("SpaceBackgroundCamera");
+                spaceCameraObject.transform.SetParent(transform, false);
+                // Well clear of the table's own world-space content — harmless either way since
+                // culling masks already keep the two cameras' content fully separate, but keeps
+                // the Scene view tidy.
+                spaceCameraObject.transform.position = new Vector3(0f, -2000f, 0f);
+                spaceCamera = spaceCameraObject.AddComponent<Camera>();
+            }
+
+            SpaceBackgroundView.Attach(spaceCamera, renderDepth: -10f);
+
+            // Depth-only clear: the table camera renders on top of the space camera's already-painted
+            // pixels, leaving the space background visible anywhere it doesn't draw opaque geometry
+            // (the margin around the playmat — see PlaymatZones.GetTableContentBounds, which fits the
+            // camera to content larger than the physical mat quad).
+            tableCamera.clearFlags = CameraClearFlags.Depth;
+
+            var spaceLayer = LayerMask.NameToLayer(SpaceBackgroundLayerName);
+            tableCamera.cullingMask = spaceLayer >= 0 ? ~(1 << spaceLayer) : -1;
         }
 
         void EnsureTableLight()

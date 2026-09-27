@@ -8,6 +8,13 @@ namespace Willbound.Engine
         public static List<GameEvent> Run(Match match)
         {
             var events = new List<GameEvent>();
+
+            // Pregame steps (Legendary Icon draft, Mulligan) leave some players without an Icon yet or
+            // with a hand mid-shuffle — state-based checks (incl. the last-Icon-standing win check) are
+            // only meaningful once the match has actually started.
+            if (match.Phase == Phase.Setup || match.Phase == Phase.LegendaryDraft || match.Phase == Phase.Mulligan)
+                return events;
+
             var ts = match.NextTs();
 
             for (var iteration = 0; iteration < 8; iteration++)

@@ -93,6 +93,7 @@ namespace LegendsOfTheUniverse.Presentation
         bool handKept;
         bool handTucked;
         Coroutine handLayoutRoutine;
+        Coroutine inspectRoutine;
         StoreActionController storeActions;
         StoreView storeView;
         bool discardMode;
@@ -114,15 +115,63 @@ namespace LegendsOfTheUniverse.Presentation
 
         /// <summary>Pulls a card out of hand bookkeeping without destroying it (e.g. for a pending Sell).
         /// Pair with <see cref="ReattachHandCard"/> to put it back if the action turns out illegal.</summary>
-        public bool DetachHandCard(CardView card) => card != null && handCards.Remove(card);
-
-        public void ReattachHandCard(CardView card)
+        public bool DetachHandCard(CardView card)
         {
-            if (card != null && !handCards.Contains(card))
-                handCards.Add(card);
+            if (card == null || !handCards.Contains(card))
+                return false;
+
+            BeginLeave(card);
+            return true;
         }
 
-        public void RelayoutHand() => StartCoroutine(LayoutKeptHandRoutine());
+        public void BeginLeave(CardView card)
+        {
+            if (card == null)
+                return;
+
+            StopInspectRoutine();
+            card.GetComponent<CardAnimator>()?.Cancel();
+            handCards.Remove(card);
+            if (card.EngineCardInstanceId is int instanceId)
+                cardsLeavingHand[instanceId] = card;
+
+            if (selectedCard == card)
+                selectedCard = null;
+            if (hoveredCard == card)
+                hoveredCard = null;
+            if (pointerCard == card)
+                pointerCard = null;
+
+            storeView?.RestoreLayoutUnlessInspecting();
+        }
+
+        public void RestoreLeavingCard(CardView card, int instanceId, int index)
+        {
+            cardsLeavingHand.Remove(instanceId);
+            ReattachHandCard(card, index);
+        }
+
+        public void ReattachHandCard(CardView card, int index = -1)
+        {
+            if (card == null || handCards.Contains(card))
+                return;
+
+            if (index < 0 || index > handCards.Count)
+                handCards.Add(card);
+            else
+                handCards.Insert(index, card);
+        }
+
+        void StopInspectRoutine()
+        {
+            if (inspectRoutine == null)
+                return;
+
+            StopCoroutine(inspectRoutine);
+            inspectRoutine = null;
+        }
+
+        public void RelayoutHand() => StartExclusiveHandLayout(LayoutKeptHandRoutine());
 
         public bool IsDragging => draggingCard != null;
         public bool CanClickCards => handKept && !IsDealing;
@@ -140,6 +189,7 @@ namespace LegendsOfTheUniverse.Presentation
             && IsHandPlayPhase
             && (storeActions == null || storeActions.CurrentMode == StoreActionMode.None);
         public bool HasInspectSelection => selectedCard != null;
+        public CardView InspectedCard => selectedCard;
 
         public void BindStoreActions(StoreActionController controller)
         {
@@ -745,7 +795,17 @@ namespace LegendsOfTheUniverse.Presentation
                 return;
             }
 
-            var fieldCount = player.Field.Count;
+            if (IsRelicOrBond(card))
+            {
+                var relicCount = CountFieldOfTypes(player, CardType.Relic, CardType.Bond);
+                if (relicCount >= PlaymatZones.RelicBondSlotCount)
+                    ShowFieldSlotHighlight(PlaymatZones.GetRelicBondSlot(PlaymatZones.RelicBondSlotCount - 1), false);
+                else
+                    ShowFieldSlotHighlight(PlaymatZones.GetRelicBondSlot(relicCount), canPlay);
+                return;
+            }
+
+            var fieldCount = CountFieldOfTypes(player, CardType.Companion, CardType.Token);
             if (fieldCount >= PlaymatZones.FieldSlotCount)
                 ShowFieldSlotHighlight(PlaymatZones.GetFieldSlot(PlaymatZones.FieldSlotCount - 1), false);
             else
@@ -757,6 +817,29 @@ namespace LegendsOfTheUniverse.Presentation
             if (card.BoundPrinting != null)
                 return card.BoundPrinting.Type == CardType.WillSite;
             return false;
+        }
+
+        static bool IsRelicOrBond(CardView card)
+        {
+            if (card.BoundPrinting == null)
+                return false;
+            return card.BoundPrinting.Type is CardType.Relic or CardType.Bond;
+        }
+
+        static int CountFieldOfTypes(Willbound.Engine.Player player, CardType typeA, CardType typeB)
+        {
+            if (player?.Field == null)
+                return 0;
+
+            var count = 0;
+            for (var i = 0; i < player.Field.Count; i++)
+            {
+                var printing = player.Field[i]?.Printing;
+                if (printing != null && (printing.Type == typeA || printing.Type == typeB))
+                    count++;
+            }
+
+            return count;
         }
 
         void ShowFieldSlotHighlight(Vector3 worldPosition, bool legal)
@@ -866,23 +949,29 @@ namespace LegendsOfTheUniverse.Presentation
 
             if (selectedCard == card)
             {
+                StopInspectRoutine();
                 selectedCard = null;
                 StartCoroutine(LayoutKeptHandRoutine());
                 storeView?.RestoreLayoutUnlessInspecting();
                 return;
             }
 
+            StopInspectRoutine();
             selectedCard = card;
             hoveredCard = null;
             BringCardToFront(card);
             storeView?.TuckForOverlayInspect();
-            StartCoroutine(InspectCardRoutine(card));
+            inspectRoutine = StartCoroutine(InspectCardRoutine(card));
         }
 
         public IEnumerator AdoptCardRoutine(CardView card, float duration)
         {
             card.transform.SetParent(transform);
             handCards.Add(card);
+
+            var storeClick = card.GetComponent<StoreCardClickHandler>();
+            if (storeClick != null)
+                Destroy(storeClick);
 
             var clickHandler = card.GetComponent<CardClickHandler>();
             if (clickHandler == null)
@@ -908,11 +997,16 @@ namespace LegendsOfTheUniverse.Presentation
 
         public IEnumerator DestroyCardRoutine(CardView card, float duration)
         {
-            if (!handCards.Remove(card))
+            if (card == null)
                 yield break;
 
-            selectedCard = null;
-            hoveredCard = null;
+            handCards.Remove(card);
+            if (selectedCard == card)
+                selectedCard = null;
+            if (hoveredCard == card)
+                hoveredCard = null;
+            if (pointerCard == card)
+                pointerCard = null;
 
             var vanishScale = keptScale * 0.06f;
             var animator = card.GetComponent<CardAnimator>();
@@ -1314,6 +1408,8 @@ namespace LegendsOfTheUniverse.Presentation
 
             while (animating > 0)
                 yield return null;
+
+            inspectRoutine = null;
         }
 
         void BringCardToFront(CardView card)

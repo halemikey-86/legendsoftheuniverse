@@ -17,7 +17,55 @@ namespace Willbound.Engine.Tests
             VanillaAlgorithm(),
             WillSite(),
             BondCard(),
+            LegendaryIconAlpha(),
+            LegendaryIconBeta(),
+            LegendaryIconGamma(),
+            RemnantRelic(),
         };
+
+        public static CardPrinting LegendaryIconAlpha() => new CardPrinting
+        {
+            Id = "LEGENDARY-ALPHA",
+            Name = "Legendary Alpha",
+            Type = CardType.Icon,
+            IsLegendary = true,
+            Strike = 3,
+            Guard = 4,
+            Health = 9,
+            StartsInPlay = true,
+        };
+
+        public static CardPrinting LegendaryIconBeta() => new CardPrinting
+        {
+            Id = "LEGENDARY-BETA",
+            Name = "Legendary Beta",
+            Type = CardType.Icon,
+            IsLegendary = true,
+            Strike = 4,
+            Guard = 3,
+            Health = 9,
+            StartsInPlay = true,
+        };
+
+        public static CardPrinting LegendaryIconGamma() => new CardPrinting
+        {
+            Id = "LEGENDARY-GAMMA",
+            Name = "Legendary Gamma",
+            Type = CardType.Icon,
+            IsLegendary = true,
+            Strike = 2,
+            Guard = 5,
+            Health = 9,
+            StartsInPlay = true,
+        };
+
+        public static CardPrinting RemnantRelic() => CardPrintingLoader.Parse(@"{
+            ""schemaVersion"": ""1.2"",
+            ""id"": ""REMNANT-1"",
+            ""name"": ""Test Remnant"",
+            ""type"": ""Remnant"",
+            ""subtype"": ""Universe""
+        }");
 
         public static CardPrinting VanillaIcon() => new CardPrinting
         {

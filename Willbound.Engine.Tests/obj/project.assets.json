@@ -820,11 +820,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\Willbound.Engine.Tests.csproj",
+      "projectUniqueName": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\Willbound.Engine.Tests.csproj",
       "projectName": "Willbound.Engine.Tests",
-      "projectPath": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\Willbound.Engine.Tests.csproj",
+      "projectPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\Willbound.Engine.Tests.csproj",
       "packagesPath": "C:\\Users\\Chemeleon\\.nuget\\packages\\",
-      "outputPath": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\obj\\",
+      "outputPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -845,8 +845,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj": {
-              "projectPath": "c:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj"
+            "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj": {
+              "projectPath": "C:\\Users\\Chemeleon\\Documents\\git\\legendsoftheuniverse\\Willbound.Engine\\Willbound.Engine.csproj"
             }
           }
         }

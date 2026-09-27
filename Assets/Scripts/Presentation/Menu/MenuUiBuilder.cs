@@ -5,8 +5,9 @@ namespace LegendsOfTheUniverse.Presentation.Menu
 {
     public static class MenuUiBuilder
     {
-        public static readonly Color Background = new(0.05f, 0.08f, 0.18f, 1f);
-        public static readonly Color PanelColor = new(0.08f, 0.11f, 0.20f, 0.96f);
+        // Semi-transparent (was 0.96 opaque) so the space background camera reads through behind
+        // every menu screen while keeping enough contrast for text/buttons.
+        public static readonly Color PanelColor = new(0.08f, 0.11f, 0.20f, 0.62f);
         public static readonly Color TextColor = new(0.95f, 0.90f, 0.78f, 1f);
         public static readonly Color ButtonColor = new(0.18f, 0.22f, 0.34f, 1f);
         public static readonly Color ButtonHoverColor = new(0.24f, 0.30f, 0.44f, 1f);

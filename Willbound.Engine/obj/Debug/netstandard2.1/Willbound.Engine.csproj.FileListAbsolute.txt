@@ -9,3 +9,14 @@
 /Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.sourcelink.json
 /Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.dll
 /Users/michaeljhale/Willbound/legendsoftheuniverse/Willbound.Engine/obj/Debug/netstandard2.1/Willbound.Engine.pdb
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\bin\Debug\netstandard2.1\Willbound.Engine.deps.json
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\bin\Debug\netstandard2.1\Willbound.Engine.dll
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\bin\Debug\netstandard2.1\Willbound.Engine.pdb
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.csproj.AssemblyReference.cache
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.AssemblyInfoInputs.cache
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.AssemblyInfo.cs
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.csproj.CoreCompileInputs.cache
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.sourcelink.json
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.dll
+C:\Users\Chemeleon\Documents\git\legendsoftheuniverse\Willbound.Engine\obj\Debug\netstandard2.1\Willbound.Engine.pdb

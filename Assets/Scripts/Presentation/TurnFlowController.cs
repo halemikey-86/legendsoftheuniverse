@@ -226,7 +226,7 @@ namespace LegendsOfTheUniverse.Presentation
                 TurnStep.Main =>
                     $"Round {Round} — Will {WillPool}. Main phase — play cards and use the store. Willwell statics are on.",
                 TurnStep.Clash =>
-                    $"Round {Round} — Will {WillPool}. Click or drag a glowing Field body to Press their Icon. End Turn if anything is still untapped.",
+                    $"Round {Round} — Will {WillPool}. Click a glowing body to Press their Icon (drag onto a body to pick the target). End Turn to resolve leftover Holds.",
                 _ => null,
             };
         }

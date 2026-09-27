@@ -20,11 +20,17 @@ namespace Willbound.Engine
             this.view = view;
         }
 
-        public static MatchRunner FromSetup(IEnumerable<CardPrinting> printings, IList<SetupPlayer> players, int seed = 1, int firstActive = 0)
+        public static MatchRunner FromSetup(
+            IEnumerable<CardPrinting> printings,
+            IList<SetupPlayer> players,
+            int seed = 1,
+            int? firstActive = 0,
+            bool randomizeSeatOrder = false,
+            bool enablePregameFlow = false)
         {
             var db = new InMemoryCardDatabase(printings);
             var rng = new SeededRng(seed);
-            var match = MatchSetup.Create(db, rng, players, firstActive);
+            var match = MatchSetup.Create(db, rng, players, firstActive, randomizeSeatOrder, enablePregameFlow);
             return new MatchRunner(match, db, rng);
         }
 
@@ -75,6 +81,9 @@ namespace Willbound.Engine
             var player = Match.GetPlayer(action.PlayerId);
             if (player == null || player.Lost)
                 return "Invalid player.";
+
+            if (IsPregameAction(action.Kind))
+                return ApplyPregameAction(player, action);
 
             if (action.PlayerId != Match.PriorityPlayerId && action.Kind != PlayerActionKind.DeclarePress
                 && action.Kind != PlayerActionKind.DeclareHold && action.Kind != PlayerActionKind.Answer)
@@ -165,6 +174,159 @@ namespace Willbound.Engine
                     return;
                 }
             }
+        }
+
+        // Pregame flow (Phase.LegendaryDraft / Phase.Mulligan). Each seated player resolves their own
+        // step independently of Match.PriorityPlayerId — these aren't Stack actions, there's no priority
+        // window before the match has started.
+        static bool IsPregameAction(PlayerActionKind kind) =>
+            kind == PlayerActionKind.PickLegendaryIcon || kind == PlayerActionKind.CycleLegendaryIcon
+            || kind == PlayerActionKind.KeepHand || kind == PlayerActionKind.CycleHandCard || kind == PlayerActionKind.Mulligan;
+
+        string ApplyPregameAction(Player player, PlayerAction action)
+        {
+            switch (action.Kind)
+            {
+                case PlayerActionKind.PickLegendaryIcon: return PickLegendaryIcon(player, action);
+                case PlayerActionKind.CycleLegendaryIcon: return CycleLegendaryIcon(player);
+                case PlayerActionKind.KeepHand: return KeepHand(player);
+                case PlayerActionKind.CycleHandCard: return CycleHandCard(player, action);
+                case PlayerActionKind.Mulligan: return MulliganHand(player);
+                default: return "Unsupported pregame action.";
+            }
+        }
+
+        string PickLegendaryIcon(Player player, PlayerAction action)
+        {
+            if (Match.Phase != Phase.LegendaryDraft)
+                return "Not in Legendary Icon draft.";
+            if (player.LegendaryDraftDone)
+                return "Already drafted.";
+
+            CardInstance chosen = null;
+            for (var i = 0; i < player.LegendaryChoices.Count; i++)
+            {
+                if (player.LegendaryChoices[i].InstanceId == action.CardInstanceId)
+                {
+                    chosen = player.LegendaryChoices[i];
+                    break;
+                }
+            }
+
+            if (chosen == null)
+                return "Not one of your offered Legendary Icons.";
+
+            chosen.Zone = Zone.Field;
+            chosen.ControllerId = player.Id;
+            chosen.Ready = true;
+            chosen.Exhausted = false;
+            player.Icon = chosen;
+            player.Field.Add(chosen);
+
+            for (var i = 0; i < player.LegendaryChoices.Count; i++)
+            {
+                var declined = player.LegendaryChoices[i];
+                if (declined.InstanceId == chosen.InstanceId)
+                    continue;
+                declined.Zone = Zone.Supply;
+                declined.ControllerId = -1;
+                Match.Supply.Add(declined);
+            }
+
+            player.LegendaryChoices.Clear();
+            player.LegendaryDraftDone = true;
+            Emit(EventKind.LegendaryIconPicked, "player", player.Id, "instanceId", chosen.InstanceId);
+
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
+        }
+
+        string CycleLegendaryIcon(Player player)
+        {
+            if (Match.Phase != Phase.LegendaryDraft)
+                return "Not in Legendary Icon draft.";
+            if (player.LegendaryDraftDone)
+                return "Already drafted.";
+            if (player.LegendaryCycleUsed)
+                return "Legendary Icon cycle already used.";
+
+            player.LegendaryChoices.Clear();
+            player.LegendaryChoices = MatchSetup.RollLegendaryChoices(Match, database, rng, player.Id);
+            player.LegendaryCycleUsed = true;
+            player.SkipFirstWill = true;
+            Emit(EventKind.LegendaryIconOffered, "player", player.Id);
+            return null;
+        }
+
+        string KeepHand(Player player)
+        {
+            if (Match.Phase != Phase.Mulligan)
+                return "Not in the Mulligan step.";
+            if (player.MulliganStepDone)
+                return "Already resolved your opening hand.";
+
+            player.MulliganStepDone = true;
+            Emit(EventKind.HandKept, "player", player.Id);
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
+        }
+
+        string CycleHandCard(Player player, PlayerAction action)
+        {
+            if (Match.Phase != Phase.Mulligan)
+                return "Not in the Mulligan step.";
+            if (player.MulliganStepDone)
+                return "Already resolved your opening hand.";
+
+            var card = Match.GetCard(action.CardInstanceId ?? -1);
+            if (card == null || !player.Hand.Contains(card))
+                return "Card not in hand.";
+            if (player.Deck.Count == 0)
+                return "Deck is empty.";
+
+            player.Hand.Remove(card);
+            card.Zone = Zone.Deck;
+            player.Deck.Add(card);
+
+            var replacement = player.Deck[0];
+            player.Deck.RemoveAt(0);
+            replacement.Zone = Zone.Hand;
+            player.Hand.Add(replacement);
+
+            player.MulliganStepDone = true;
+            Emit(EventKind.HandCycled, "player", player.Id, "instanceId", card.InstanceId);
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
+        }
+
+        string MulliganHand(Player player)
+        {
+            if (Match.Phase != Phase.Mulligan)
+                return "Not in the Mulligan step.";
+            if (player.MulliganStepDone)
+                return "Already resolved your opening hand.";
+
+            for (var i = 0; i < player.Hand.Count; i++)
+            {
+                player.Hand[i].Zone = Zone.Deck;
+                player.Deck.Add(player.Hand[i]);
+            }
+
+            player.Hand.Clear();
+            rng.Shuffle(player.Deck);
+
+            for (var h = 0; h < MatchConstants.MulliganHandSize && player.Deck.Count > 0; h++)
+            {
+                var card = player.Deck[0];
+                player.Deck.RemoveAt(0);
+                card.Zone = Zone.Hand;
+                player.Hand.Add(card);
+            }
+
+            player.MulliganStepDone = true;
+            Emit(EventKind.HandMulliganed, "player", player.Id);
+            MatchSetup.AdvancePregameIfReady(Match, rng);
+            return null;
         }
 
         void AdvanceStepOrClashPhase()
@@ -516,27 +678,45 @@ namespace Willbound.Engine
                 return "One Store action per turn."; // test 26
 
             var kind = action.StoreKind ?? MapStoreKind(action.Kind);
-            var paidWorth = action.PaidWorth;
+            var paidWorth = 0;
 
-            if (kind == StoreActionKind.Sell)
+            if (kind == StoreActionKind.Buy)
+            {
+                var card = StoreCardAt(action.StoreSlotIndex);
+                if (card == null)
+                    return "Empty store slot.";
+                var cost = card.Printing != null ? card.Printing.StoreWorth : 0;
+                if (player.Worth < cost)
+                    return "Insufficient Worth.";
+                paidWorth = PayWorth(player, cost);
+            }
+            else if (kind == StoreActionKind.Trade)
+            {
+                var storeCard = StoreCardAt(action.StoreSlotIndex);
+                var handCard = FindHandCard(player, action.HandCardInstanceId);
+                if (storeCard == null || handCard == null)
+                    return "Trade needs a hand card and a store card.";
+                var storeCost = storeCard.Printing != null ? storeCard.Printing.StoreWorth : 0;
+                var handCost = handCard.Printing != null ? handCard.Printing.StoreWorth : 0;
+                var extra = storeCost > handCost ? storeCost - handCost : 0;
+                if (player.Worth < extra)
+                    return "Insufficient Worth.";
+                paidWorth = PayWorth(player, extra);
+            }
+            else if (kind == StoreActionKind.Sell)
             {
                 if (!action.HandCardInstanceId.HasValue)
+                    return "No card selected to sell.";
+                if (FindHandCard(player, action.HandCardInstanceId) == null)
                     return "No card selected to sell.";
                 if (player.BoughtThisTurn.Contains(action.HandCardInstanceId.Value))
                     return "Cannot sell a card you just bought this turn.";
             }
-
-            if (kind == StoreActionKind.Row && player.Worth < 2)
-                return "Row costs 2 Worth.";
-
-            var rowCost = kind == StoreActionKind.Row ? 2 : 0;
-            if (rowCost > 0 && player.Worth < rowCost)
-                return "Row costs 2 Worth.";
-
-            if (rowCost > 0)
+            else if (kind == StoreActionKind.Row)
             {
-                player.Worth -= rowCost;
-                paidWorth = rowCost;
+                if (player.Worth < 2)
+                    return "Row costs 2 Worth.";
+                paidWorth = PayWorth(player, 2);
             }
 
             var stackObj = new StackObject
@@ -595,11 +775,10 @@ namespace Willbound.Engine
             if (controller == null)
                 return;
             controller.Will += obj.PaidWill;
-            controller.Worth += obj.PaidWorth;
             if (obj.PaidWill > 0)
                 Emit(EventKind.WillSet, "player", controller.Id, "amount", controller.Will);
             if (obj.PaidWorth > 0)
-                Emit(EventKind.WorthChanged, "player", controller.Id, "delta", obj.PaidWorth);
+                GainWorth(controller, obj.PaidWorth);
         }
 
         StackObject FindStack(int stackId)
@@ -693,65 +872,130 @@ namespace Willbound.Engine
             }
         }
 
+        CardInstance StoreCardAt(int? slotIndex)
+        {
+            if (!slotIndex.HasValue || slotIndex.Value < 0 || slotIndex.Value >= Match.Store.Length)
+                return null;
+            return Match.Store[slotIndex.Value];
+        }
+
+        static CardInstance FindHandCard(Player player, int? instanceId)
+        {
+            if (player == null || !instanceId.HasValue)
+                return null;
+            for (var i = 0; i < player.Hand.Count; i++)
+            {
+                if (player.Hand[i].InstanceId == instanceId.Value)
+                    return player.Hand[i];
+            }
+
+            return null;
+        }
+
+        int PayWorth(Player player, int amount)
+        {
+            if (amount <= 0)
+                return 0;
+            player.Worth -= amount;
+            EmitWorthChanged(player, -amount);
+            return amount;
+        }
+
+        int GainWorth(Player player, int amount)
+        {
+            if (player == null || amount <= 0)
+                return 0;
+            player.Worth += amount;
+            EmitWorthChanged(player, amount);
+            return amount;
+        }
+
+        void EmitWorthChanged(Player player, int delta)
+        {
+            Emit(EventKind.WorthChanged, "player", player.Id, "delta", delta, "amount", player.Worth);
+        }
+
+        /// <summary>Sell always puts the card into the Store. If every slot is full, the last
+        /// Store card is pushed to the bottom of Supply so the sold card stays on the river.</summary>
+        void PlaceSoldCardInStore(CardInstance card)
+        {
+            for (var i = 0; i < Match.Store.Length; i++)
+            {
+                if (Match.Store[i] != null)
+                    continue;
+
+                Match.Store[i] = card;
+                card.Zone = Zone.Store;
+                card.ControllerId = -1;
+                return;
+            }
+
+            var last = Match.Store.Length - 1;
+            var displaced = Match.Store[last];
+            if (displaced != null)
+            {
+                displaced.Zone = Zone.Supply;
+                displaced.ControllerId = -1;
+                Match.Supply.Add(displaced);
+                Emit(EventKind.CardMoved, "instanceId", displaced.InstanceId, "zone", Zone.Supply.ToString());
+            }
+
+            Match.Store[last] = card;
+            card.Zone = Zone.Store;
+            card.ControllerId = -1;
+        }
+
         void ResolveStore(StackObject obj)
         {
             var player = Match.GetPlayer(obj.ControllerId);
             switch (obj.StoreKind)
             {
                 case StoreActionKind.Buy:
-                    if (obj.StoreSlotIndex.HasValue && obj.StoreSlotIndex.Value >= 0 && obj.StoreSlotIndex.Value < Match.Store.Length)
                     {
-                        var card = Match.Store[obj.StoreSlotIndex.Value];
-                        if (card != null)
+                        var card = StoreCardAt(obj.StoreSlotIndex);
+                        if (card != null && obj.StoreSlotIndex.HasValue)
                         {
-                            player.Worth -= card.Printing.StoreWorth;
                             Match.Store[obj.StoreSlotIndex.Value] = null;
                             card.Zone = Zone.Hand;
                             card.ControllerId = player.Id;
                             player.Hand.Add(card);
                             player.BoughtThisTurn.Add(card.InstanceId);
-                            Emit(EventKind.WorthChanged, "player", player.Id, "delta", -card.Printing.StoreWorth);
+                            Emit(EventKind.CardMoved, "instanceId", card.InstanceId, "zone", Zone.Hand.ToString());
+                        }
+                    }
+                    break;
+                case StoreActionKind.Trade:
+                    {
+                        var storeCard = StoreCardAt(obj.StoreSlotIndex);
+                        var handCard = FindHandCard(player, obj.HandCardInstanceId);
+                        if (storeCard != null && handCard != null && obj.StoreSlotIndex.HasValue)
+                        {
+                            player.Hand.Remove(handCard);
+                            Match.Store[obj.StoreSlotIndex.Value] = handCard;
+                            handCard.Zone = Zone.Store;
+                            handCard.ControllerId = -1;
+
+                            storeCard.Zone = Zone.Hand;
+                            storeCard.ControllerId = player.Id;
+                            player.Hand.Add(storeCard);
+                            player.BoughtThisTurn.Add(storeCard.InstanceId);
+                            Emit(EventKind.CardMoved, "instanceId", storeCard.InstanceId, "zone", Zone.Hand.ToString());
+                            Emit(EventKind.CardMoved, "instanceId", handCard.InstanceId, "zone", Zone.Store.ToString());
                         }
                     }
                     break;
                 case StoreActionKind.Sell:
-                    if (obj.HandCardInstanceId.HasValue)
                     {
-                        CardInstance card = null;
-                        for (var i = 0; i < player.Hand.Count; i++)
-                        {
-                            if (player.Hand[i].InstanceId == obj.HandCardInstanceId.Value)
-                            {
-                                card = player.Hand[i];
-                                break;
-                            }
-                        }
-
+                        var card = FindHandCard(player, obj.HandCardInstanceId);
                         if (card != null)
                         {
                             player.Hand.Remove(card);
-                            player.Worth += 1;
-
-                            var placed = false;
-                            for (var i = 0; i < Match.Store.Length; i++)
-                            {
-                                if (Match.Store[i] == null)
-                                {
-                                    Match.Store[i] = card;
-                                    card.Zone = Zone.Store;
-                                    card.ControllerId = -1;
-                                    placed = true;
-                                    break;
-                                }
-                            }
-
-                            if (!placed)
-                            {
-                                card.Zone = Zone.Supply;
-                                Match.Supply.Add(card);
-                            }
-
-                            Emit(EventKind.WorthChanged, "player", player.Id, "delta", 1);
+                            var gained = card.Printing != null ? card.Printing.StoreWorth : 0;
+                            if (gained < 0)
+                                gained = 0;
+                            GainWorth(player, gained);
+                            PlaceSoldCardInStore(card);
+                            Emit(EventKind.CardMoved, "instanceId", card.InstanceId, "zone", card.Zone.ToString());
                         }
                     }
                     break;
@@ -873,17 +1117,22 @@ namespace Willbound.Engine
             var guard = DamageMath.EffectiveGuard(target, Match);
             var absolute = press.Keywords.Contains(Keyword.Absolute);
             var damage = DamageMath.ComputeDamage(strike, guard, absolute);
+            if (damage > 0)
+            {
+                target.DamageMarked += damage;
+                press.DamageDealt = damage;
+            }
+
+            Emit(EventKind.DamageDealt, "source", source.InstanceId, "target", target.InstanceId, "amount", damage, "wave", press.Wave, "absolute", absolute);
+            Emit(EventKind.HealthChanged, "instanceId", target.InstanceId, "current", target.CurrentHealth, "printed", target.Health);
+
             if (damage <= 0)
                 return;
 
-            var before = target.CurrentHealth;
-            target.DamageMarked += damage;
-            press.DamageDealt = damage;
-            Emit(EventKind.DamageDealt, "source", source.InstanceId, "target", target.InstanceId, "amount", damage, "wave", press.Wave, "absolute", absolute);
-
-            if (press.Keywords.Contains(Keyword.Gashing) && target.Printing.Type == CardType.Companion && damage > 0)
+            if (press.Keywords.Contains(Keyword.Gashing) && target.Printing.Type == CardType.Companion)
             {
                 target.DamageMarked = target.Health;
+                Emit(EventKind.HealthChanged, "instanceId", target.InstanceId, "current", target.CurrentHealth, "printed", target.Health);
             }
 
             if (target.CurrentHealth <= 0)
@@ -929,6 +1178,7 @@ namespace Willbound.Engine
                 var iconDamage = DamageMath.ComputeDamage(leftover, icon.Guard, false);
                 icon.DamageMarked += iconDamage;
                 Emit(EventKind.DamageDealt, "source", press.SourceInstanceId, "target", icon.InstanceId, "amount", iconDamage, "wave", -1, "absolute", false);
+                Emit(EventKind.HealthChanged, "instanceId", icon.InstanceId, "current", icon.CurrentHealth, "printed", icon.Health);
             }
 
             RunChecks();

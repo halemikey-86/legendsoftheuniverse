@@ -22,7 +22,12 @@ namespace Willbound.Table
 
         CardView draggingCard;
         int draggingInstanceId = -1;
+        CardView pointerCard;
+        int pointerInstanceId = -1;
+        Vector2 pointerDownScreen;
+        bool dragStarted;
         readonly List<ZoneView> zones = new();
+        const float ClickDragThreshold = 12f;
 
         public bool IsDragging => draggingCard != null;
 
@@ -35,27 +40,45 @@ namespace Willbound.Table
             if (tableCamera == null)
                 tableCamera = Camera.main;
 
-            zones.AddRange(FindObjectsByType<ZoneView>());
+            EnsureZones();
         }
 
         void Update()
         {
             if (WasPrimaryDownThisFrame())
-                TryBeginDrag();
+                TryPickCard();
 
-            if (draggingCard != null)
+            if (pointerCard == null)
+                return;
+
+            if (IsPrimaryHeld())
             {
-                if (IsPrimaryHeld())
+                if (!dragStarted
+                    && Vector2.Distance(GetPointerScreenPosition(), pointerDownScreen) >= ClickDragThreshold)
+                    BeginDragFromPointer();
+
+                if (dragStarted)
                     ContinueDrag();
-                else
-                    EndDrag();
+                return;
             }
+
+            if (dragStarted)
+                EndDrag();
+            else
+                ClickPress();
+
+            pointerCard = null;
+            pointerInstanceId = -1;
+            dragStarted = false;
         }
 
-        void TryBeginDrag()
+        void TryPickCard()
         {
             if (binder == null || actionHost == null || !actionHost.IsActive)
                 return;
+
+            binder.RefreshSnapshot();
+            EnsureZones();
 
             if (!TryRaycastTableCard(out var tableCard))
                 return;
@@ -63,13 +86,53 @@ namespace Willbound.Table
             if (tableCard.InstanceId <= 0)
                 return;
 
-            if (!binder.CanPickup(tableCard.InstanceId))
+            pointerCard = tableCard;
+            pointerInstanceId = tableCard.InstanceId;
+            pointerDownScreen = GetPointerScreenPosition();
+            dragStarted = false;
+        }
+
+        void BeginDragFromPointer()
+        {
+            if (pointerCard == null || pointerInstanceId <= 0)
+                return;
+            if (!binder.CanPickup(pointerInstanceId))
                 return;
 
-            draggingCard = tableCard;
-            draggingInstanceId = tableCard.InstanceId;
+            dragStarted = true;
+            draggingCard = pointerCard;
+            draggingInstanceId = pointerInstanceId;
             draggingCard.BeginDrag();
             UpdateZoneHighlights();
+        }
+
+        void ClickPress()
+        {
+            if (binder == null || actionHost == null || pointerInstanceId <= 0)
+                return;
+
+            binder.RefreshSnapshot();
+            if (!binder.IsBodyInDeclareQueue(pointerInstanceId))
+                return;
+
+            var targetId = FindTargetInstanceId();
+            if (targetId == null || !binder.IsLegalPressTarget(pointerInstanceId, targetId.Value))
+                targetId = binder.DefaultPressTargetId();
+            if (targetId == null)
+                return;
+
+            var action = binder.BuildDropAction(pointerInstanceId, TableZoneKind.Field, targetId);
+            var result = actionHost.TryApply(action);
+            if (!result.Success && !string.IsNullOrEmpty(result.Error))
+                Debug.Log($"[DragAgent] Press rejected: {result.Error}");
+        }
+
+        void EnsureZones()
+        {
+            if (zones.Count > 0)
+                return;
+
+            zones.AddRange(FindObjectsByType<ZoneView>());
         }
 
         void ContinueDrag()
