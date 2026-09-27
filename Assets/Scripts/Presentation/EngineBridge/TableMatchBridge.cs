@@ -433,47 +433,6 @@ namespace LegendsOfTheUniverse.Presentation.EngineBridge
             return true;
         }
 
-        public bool TryStoreSell(int handCardInstanceId, out string error)
-        {
-            error = null;
-            if (!IsActive)
-            {
-                error = "Engine not active.";
-                return false;
-            }
-
-            if (!EnginePhaseMapper.StoreAllowed(runner.Match.Phase, runner.Match, localPlayerId))
-            {
-                error = "Store actions are only available during your Main phase (once per turn).";
-                return false;
-            }
-
-            if (botActing)
-            {
-                error = "Opponent is acting.";
-                return false;
-            }
-
-            var result = ApplyThenAdvance(new PlayerAction
-            {
-                Kind = PlayerActionKind.StoreSell,
-                PlayerId = localPlayerId,
-                HandCardInstanceId = handCardInstanceId,
-                StoreKind = StoreActionKind.Sell,
-            });
-
-            if (!result.Success)
-            {
-                error = result.Error;
-                EngineError?.Invoke(error);
-                return false;
-            }
-
-            PublishResult(result);
-            KickNonLocalActors();
-            return true;
-        }
-
         ApplyResult ApplyThenAdvance(PlayerAction action)
         {
             return runner.Apply(action);
